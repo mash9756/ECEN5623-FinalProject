@@ -6,41 +6,23 @@ CDEFS=
 CFLAGS= -O0 -g $(INCLUDE_DIRS) $(CDEFS)
 LIBS= -L/usr/lib -lopencv_core -lopencv_flann -lopencv_video -lrt -lpigpio
 
-# SRC_NAME= capture sensor
+src = $(wildcard *.cpp)
+obj = $(src:.cpp=.o)
 
-HFILES= 
-CFILES= capture.cpp sensor.cpp
+all: build final
 
-SRCS= ${HFILES} ${CFILES}
-OBJS= ${CFILES:.cpp=.o}
-# OBJS= bin/${SRC_NAME}.o
-# TRGT= bin/${SRC_NAME}
+build:
+	mkdir -p bin
 
-all: capture sensor
+final: $(obj)
+	$(CC) $(CFLAGS) -o $@ $^ `pkg-config --libs opencv4` $(LIBS)
+
+.cpp.o: $(src)
+	$(CC) $(CFLAGS) -c $<
+
+.PHONY: clean
 
 clean:
-	-rm -f *.o *.d
-	-rm -f capture sensor
-
-# build:
-# 	mkdir -p bin
-
-# ${SRC_NAME}: ${SRC_NAME}.o
-# 	$(CC)
-
-# ${SRC_NAME}.o: build
-# 	$(CC) $(LIBS) ${CFLAGS} -c ${SRCS} -o ${OBJS} `pkg-config --libs opencv4`
-
-capture: capture.o
-	$(CC) $(LDFLAGS) $(CFLAGS) -o $@ $@.o `pkg-config --libs opencv4` $(LIBS)
-
-sensor: sensor.o
-	$(CC) $(CFLAGS) sensor.o -o sensor -lpigpio -lrt
-
-sensor.o: 
-	$(CC) $(CFLAGS) -c sensor.cpp -o sensor.o -lpigpio -lrt
-
-depend:
-
-.cpp.o: $(SRCS)
-	$(CC) $(CFLAGS) -c $<
+	rm -f *.o *.d
+	rm -f $(obj) final
+	rm -r bin
