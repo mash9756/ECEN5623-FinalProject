@@ -7,21 +7,40 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
+#include <semaphore.h>
 #include <stdint.h>
 #include <unistd.h>
 
 #include <pigpio.h>
 
+static double sensorData    = 0;
+static double range         = 0;
+
 /* HC-SR04 TRIG is connected to GPIO23 (physical pin 16) */
-    static const unsigned int TRIG_PIN  = 23;  
+static const unsigned int TRIG_PIN  = 23;  
 /* HC-SR04 TRIG is connected to GPIO24 (physical pin 18) */  
-    static const unsigned int ECHO_PIN  = 24; 
+static const unsigned int ECHO_PIN  = 24; 
 /* Speed of sound at sea level, m/s*/
-    static const double SPEED_OF_SOUND  = 343.00;
+static const double SPEED_OF_SOUND  = 343.00;
 /* meters to cm */
-    static const double M_TO_CM  = 100;
+static const double M_TO_CM  = 100;
 /* seconds to microseconds */
-    static const double SEC_TO_US  = 1000000;
+static const double SEC_TO_US  = 1000000;
+
+sem_t dataSem;
+sem_t rangeSem;
+
+int lockRangeSem(void) {
+    return sem_wait(&rangeSem);
+}
+
+int unlockRangeSem(void) {
+    return sem_post(&rangeSem);
+}
+
+double *getRange(void) {
+    return &range;
+}
 
 /* error check for individual gpio init */
 int check_gpio_error(int ret, int pin) {
@@ -67,18 +86,37 @@ void echo(int pin, int level, uint32_t time_us) {
     if(level == PI_ON) {
         start_us = (double)time_us;
     }
-/* calculate distance based on start tick and current tick when level drops */
+/* get pulse travel time from start tick and current tick when level drops */
     else if(level == PI_OFF) {
-        diff_us = (double)time_us - start_us;
-    /**
-     *  distance = rate * time, rate = speed of sound, time is in microseconds
-     *  convert m/s to cm/us to get distance in cm
-     *  divide by 2 as the sonar pulse is travelling to the object and back
-    */
-        range_cm = ((diff_us * SPEED_OF_SOUND * (M_TO_CM / SEC_TO_US)) / 2);
-        if(range_cm < 100) {
-            printf("%.02f %.02f %.02fcm\n", ((double)time_us - first_us), diff_us, range_cm);
-        }
+        sem_wait(&dataSem);
+        sensorData = (double)time_us - start_us;
+        sem_post(&dataSem);
+    }
+}
+
+/**
+ *  distance = rate * time, rate = speed of sound, time is in microseconds
+ *  convert m/s to cm/us to get distance in cm
+ *  divide by 2 as the sonar pulse is travelling to the object and back
+*/
+void *sensorProcess_func(void *threadp) {
+    double prev_time    = 0;
+    double time_us      = 0;
+    double prev_range   = 0;
+    double range_cm     = 0;
+
+    while(1) {
+        prev_time   = time_us;
+        prev_range  = range_cm;
+
+    /* lock sensor data and range while we update */
+        sem_wait(&dataSem);
+        lockRangeSem();
+        time_us     = sensorData;
+        range_cm    = ((time_us * SPEED_OF_SOUND * (M_TO_CM / SEC_TO_US)) / 2);
+        range       = range_cm;
+        sem_post(&dataSem);
+        unlockRangeSem();
     }
 }
 

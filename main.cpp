@@ -53,8 +53,44 @@ pthread_t alarm_thread;
 pthread_attr_t alarm_attr;
 struct sched_param alarm_param;
 
+void set_liveStream_sched(void) {
+    pthread_attr_init(&liveStream_attr);
+    pthread_attr_setinheritsched(&liveStream_attr, PTHREAD_EXPLICIT_SCHED);
+    pthread_attr_setschedpolicy(&liveStream_attr, SCHED_FIFO);
+
+    liveStream_param.sched_priority = rt_max_prio - LIVE_STREAM_PRIO;
+    pthread_attr_setschedparam(&liveStream_attr, &liveStream_param);
+}
+
+void set_sensorRx_sched(void) {
+    pthread_attr_init(&sensorRx_attr);
+    pthread_attr_setinheritsched(&sensorRx_attr, PTHREAD_EXPLICIT_SCHED);
+    pthread_attr_setschedpolicy(&sensorRx_attr, SCHED_FIFO);
+
+    sensorRx_param.sched_priority = rt_max_prio - SENSOR_RX_PRIO;
+    pthread_attr_setschedparam(&sensorRx_attr, &sensorRx_param);
+}
+
+void set_sensorProcess_sched(void) {
+    pthread_attr_init(&sensorProcess_attr);
+    pthread_attr_setinheritsched(&sensorProcess_attr, PTHREAD_EXPLICIT_SCHED);
+    pthread_attr_setschedpolicy(&sensorProcess_attr, SCHED_FIFO);
+
+    sensorProcess_param.sched_priority = rt_max_prio - SENSOR_PROCESS_PRIO;
+    pthread_attr_setschedparam(&sensorProcess_attr, &sensorProcess_param);
+}
+
+void set_alarm_sched(void) {
+    pthread_attr_init(&alarm_attr);
+    pthread_attr_setinheritsched(&alarm_attr, PTHREAD_EXPLICIT_SCHED);
+    pthread_attr_setschedpolicy(&alarm_attr, SCHED_FIFO);
+
+    alarm_param.sched_priority = rt_max_prio - ALARM_PRIO;
+    pthread_attr_setschedparam(&alarm_attr, &alarm_param);
+}
+
 int main() {
-    /* init pigpio library */
+/* ---------------------- init pigpio library ---------------------- */
     printf("Initializing pigpio... ");
     int ret = gpioInitialise();
     if (ret == PI_INIT_FAILED) {
@@ -62,8 +98,17 @@ int main() {
         return -1;    
     }
     printf("Done!\n");
+/* ------------------------------------------------------------------ */
 
+/* ---------------------- configure scheduling ---------------------- */
     print_scheduler();
+    set_alarm_sched();
+    set_sensorRx_sched();
+    set_sensorProcess_sched();
+    set_liveStream_sched();
+/** TODO: configure main scheduler to SCHED_FIFO */
+    print_scheduler();
+/* ------------------------------------------------------------------ */
 
 /* setup HC-SR04 Ultrasonic Sensor */
     if(configHCSR04()) {
@@ -77,10 +122,10 @@ int main() {
     }
 
 /* create threads for each service */
-    pthread_create(&liveStream_thread,  &liveStream_attr,   liveStream_func,     NULL);
-    pthread_create(&alarm_thread,       &alarm_attr,        alarm_func,          NULL);
+    pthread_create(&liveStream_thread,      &liveStream_attr,       liveStream_func,     NULL);
+    pthread_create(&alarm_thread,           &alarm_attr,            alarm_func,          NULL);
+    pthread_create(&sensorProcess_thread,   &sensorProcess_attr,    sensorProcess_func,  NULL);
     //pthread_create(&sensorRx_thread,        &sensorRx_attr,         sensorRx_func,       NULL);
-    //pthread_create(&sensorProcess_thread,   &sensorProcess_attr,    sensorProcess_func,  NULL);
 
     while(1){
         sleep(1);
