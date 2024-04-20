@@ -20,10 +20,10 @@ static const unsigned int DELAY_250MS   = 250000;
 static const unsigned int DELAY_100MS   = 100000;
 
 /* ranges in cm */
-static const unsigned int MAX_RANGE     = 300;
-static const unsigned int MID_RANGE     = 150;
-static const unsigned int CLOSE_RANGE   = 100;
-static const unsigned int DANGER_RANGE  = 50;
+static const double MAX_RANGE     = 300;
+static const double MID_RANGE     = 150;
+static const double CLOSE_RANGE   = 100;
+static const double DANGER_RANGE  = 50;
 
 void *alarm_func(void *threadp) {
     uint32_t delay  = 0;
@@ -32,28 +32,26 @@ void *alarm_func(void *threadp) {
     while(1) {
     /* skip over current iteration if we can't lock the semaphore */
         if(lockRangeSem()) {
+            printf("\nCouldn't lock rangeSem!");
             continue;
         }
         range = getRange();
         unlockRangeSem();
 
-        switch (range)
-        {
-        case sensorData > MAX_RANGE:
-            delay = DELAY_1_SEC;
-            break;
-        case sensorData > MID_RANGE:
-            delay = DELAY_500MS; 
-            break;
-        case sensorData > CLOSE_RANGE:
-            delay = DELAY_250MS;
-            break;
-        case sensorData > DANGER_RANGE:
-            delay = DELAY_100MS;
-            break;
-        default:
+        if(range > MAX_RANGE) {
             delay = DELAY_2_SEC;
-            break;
+        }
+        else if(range > MID_RANGE) {
+            delay = DELAY_1_SEC; 
+        }
+        else if(range > CLOSE_RANGE) {
+            delay = DELAY_500MS;
+        }
+        else if(range > DANGER_RANGE) {
+            delay = DELAY_250MS;
+        }
+        else{
+            delay = DELAY_100MS;
         }
 
         printf("\nObject Detected! Range: %.02f", range);

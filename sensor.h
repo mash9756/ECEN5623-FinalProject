@@ -10,7 +10,8 @@ int configHCSR04(void);
 void *sensorProcess_func(void *threadp);
 int check_gpio_error(int ret, int pin);
 
-int lockSensorSem(void);
-int unlockSensorSem(void);
+int lockRangeSem(void);
+int unlockRangeSem(void);
+double getRange(void);
 
 #endif

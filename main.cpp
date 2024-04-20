@@ -53,6 +53,13 @@ pthread_t alarm_thread;
 pthread_attr_t alarm_attr;
 struct sched_param alarm_param;
 
+/* Main thread declarations and sched attributes */
+pthread_attr_t main_attr;
+struct sched_param main_param;
+
+int rt_max_prio = sched_get_priority_max(SCHED_FIFO);
+int rt_min_prio = sched_get_priority_min(SCHED_FIFO);
+
 void set_liveStream_sched(void) {
     pthread_attr_init(&liveStream_attr);
     pthread_attr_setinheritsched(&liveStream_attr, PTHREAD_EXPLICIT_SCHED);
@@ -89,6 +96,37 @@ void set_alarm_sched(void) {
     pthread_attr_setschedparam(&alarm_attr, &alarm_param);
 }
 
+/* configure main thread scheduling policy and parameters */
+void set_main_sched(void) {
+    int rc          = 0;
+    int scope       = 0;
+    pid_t main_pid  = getpid();
+
+    rc = sched_getparam(main_pid, &main_param);
+    if(rc < 0) {
+        perror("sched getparam");
+    }
+    main_param.sched_priority = rt_max_prio;
+    rc = sched_setscheduler(getpid(), SCHED_FIFO, &main_param);
+    if(rc < 0) {
+        perror("setscheduler");
+    }
+
+    pthread_attr_getscope(&main_attr, &scope);
+
+    if(scope == PTHREAD_SCOPE_SYSTEM) {
+        printf("PTHREAD SCOPE SYSTEM\n");
+    }
+    else if (scope == PTHREAD_SCOPE_PROCESS) {
+        printf("PTHREAD SCOPE PROCESS\n");
+    }
+    else {
+        printf("PTHREAD SCOPE UNKNOWN\n");
+    }
+
+    pthread_attr_setschedparam(&main_attr, &main_param);
+}
+
 int main() {
 /* ---------------------- init pigpio library ---------------------- */
     printf("Initializing pigpio... ");
@@ -102,11 +140,11 @@ int main() {
 
 /* ---------------------- configure scheduling ---------------------- */
     print_scheduler();
+    set_main_sched();
     set_alarm_sched();
     set_sensorRx_sched();
     set_sensorProcess_sched();
     set_liveStream_sched();
-/** TODO: configure main scheduler to SCHED_FIFO */
     print_scheduler();
 /* ------------------------------------------------------------------ */
 

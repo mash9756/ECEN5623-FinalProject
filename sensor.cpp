@@ -38,8 +38,8 @@ int unlockRangeSem(void) {
     return sem_post(&rangeSem);
 }
 
-double *getRange(void) {
-    return &range;
+double getRange(void) {
+    return range;
 }
 
 /* error check for individual gpio init */
@@ -90,6 +90,7 @@ void echo(int pin, int level, uint32_t time_us) {
     else if(level == PI_OFF) {
         sem_wait(&dataSem);
         sensorData = (double)time_us - start_us;
+        //printf("\nsensorData: %d", sensorData);
         sem_post(&dataSem);
     }
 }
@@ -115,6 +116,7 @@ void *sensorProcess_func(void *threadp) {
         time_us     = sensorData;
         range_cm    = ((time_us * SPEED_OF_SOUND * (M_TO_CM / SEC_TO_US)) / 2);
         range       = range_cm;
+        //printf("\nrange: %.02f | sensorData: %d", range, sensorData);
         sem_post(&dataSem);
         unlockRangeSem();
     }
@@ -132,6 +134,9 @@ int configHCSR04(void) {
         return -1;
     }
     printf("Done!\n");
+
+    sem_init(&rangeSem, 0, 1);
+    sem_init(&dataSem,  0, 1);
 
 /* turn off TRIG_PIN to start */
     gpioWrite(TRIG_PIN, PI_OFF);
