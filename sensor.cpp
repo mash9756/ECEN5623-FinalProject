@@ -13,6 +13,8 @@
 
 #include <pigpio.h>
 
+#include "misc.h"
+
 static double sensorData    = 0;
 static double range         = 0;
 
@@ -27,8 +29,14 @@ static const double M_TO_CM  = 100;
 /* seconds to microseconds */
 static const double SEC_TO_US  = 1000000;
 
+/* locking for sensor raw data and calculated range */
 sem_t dataSem;
 sem_t rangeSem;
+
+/* WCET timing */
+struct timespec start   = {0, 0};
+struct timespec finish  = {0, 0};
+struct timespec WCET    = {0, 0};
 
 int lockRangeSem(void) {
     return sem_wait(&rangeSem);
@@ -79,6 +87,7 @@ void echo(int pin, int level, uint32_t time_us) {
     double diff_us = 0;
     double range_cm = 0;
 
+    clock_gettime(CLOCK_REALTIME, &start);
     if(!first_us) {
         first_us = (double)time_us;
     }
@@ -93,6 +102,9 @@ void echo(int pin, int level, uint32_t time_us) {
         //printf("\nsensorData: %d", sensorData);
         sem_post(&dataSem);
     }
+    delta_t(&finish, &start, &WCET);
+    //syslog(LOG_NOTICE, "\talarm WCET %lf msec\n", timestamp(&WCET));
+    printf("\tsensorRx WCET %lf msec\n", timestamp(&WCET));
 }
 
 /**
@@ -107,6 +119,8 @@ void *sensorProcess_func(void *threadp) {
     double range_cm     = 0;
 
     while(1) {
+        clock_gettime(CLOCK_REALTIME, &start);
+
         prev_time   = time_us;
         prev_range  = range_cm;
 
@@ -119,6 +133,10 @@ void *sensorProcess_func(void *threadp) {
         //printf("\nrange: %.02f | sensorData: %d", range, sensorData);
         sem_post(&dataSem);
         unlockRangeSem();
+
+        delta_t(&finish, &start, &WCET);
+        //syslog(LOG_NOTICE, "\talarm WCET %lf msec\n", timestamp(&WCET));
+        printf("\tsensorProcess WCET %lf msec\n", timestamp(&WCET));
     }
 }
 
