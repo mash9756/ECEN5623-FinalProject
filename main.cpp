@@ -24,6 +24,8 @@
 #include "alarm.h"
 #include "misc.h"
 
+#define NUM_CPUS                (1)
+
 // typedef struct
 // {
 //   int threadIdx;
@@ -61,36 +63,69 @@ int rt_max_prio = sched_get_priority_max(SCHED_FIFO);
 int rt_min_prio = sched_get_priority_min(SCHED_FIFO);
 
 void set_liveStream_sched(void) {
+    int coreid  = 0;
+    cpu_set_t threadcpu;
+
+    CPU_ZERO(&threadcpu);
+    CPU_SET(coreid, &threadcpu);
+    printf("\nliveStream thread set to run on core %d", coreid);
+
     pthread_attr_init(&liveStream_attr);
     pthread_attr_setinheritsched(&liveStream_attr, PTHREAD_EXPLICIT_SCHED);
     pthread_attr_setschedpolicy(&liveStream_attr, SCHED_FIFO);
+    pthread_attr_setaffinity_np(&liveStream_attr, sizeof(cpu_set_t), &threadcpu);
 
     liveStream_param.sched_priority = rt_max_prio - LIVE_STREAM_PRIO;
     pthread_attr_setschedparam(&liveStream_attr, &liveStream_param);
 }
 
 void set_sensorRx_sched(void) {
+    int coreid  = 0;
+    cpu_set_t threadcpu;
+
+    CPU_ZERO(&threadcpu);
+    CPU_SET(coreid, &threadcpu);
+    printf("\nsensorRx thread set to run on core %d", coreid);
+
     pthread_attr_init(&sensorRx_attr);
     pthread_attr_setinheritsched(&sensorRx_attr, PTHREAD_EXPLICIT_SCHED);
     pthread_attr_setschedpolicy(&sensorRx_attr, SCHED_FIFO);
+    pthread_attr_setaffinity_np(&sensorRx_attr, sizeof(cpu_set_t), &threadcpu);
 
     sensorRx_param.sched_priority = rt_max_prio - SENSOR_RX_PRIO;
     pthread_attr_setschedparam(&sensorRx_attr, &sensorRx_param);
 }
 
 void set_sensorProcess_sched(void) {
+    int coreid  = 0;
+    cpu_set_t threadcpu;
+
+    CPU_ZERO(&threadcpu);
+    CPU_SET(coreid, &threadcpu);
+    printf("\nsensorProcess thread set to run on core %d", coreid);
+
     pthread_attr_init(&sensorProcess_attr);
     pthread_attr_setinheritsched(&sensorProcess_attr, PTHREAD_EXPLICIT_SCHED);
     pthread_attr_setschedpolicy(&sensorProcess_attr, SCHED_FIFO);
+    pthread_attr_setaffinity_np(&sensorProcess_attr, sizeof(cpu_set_t), &threadcpu);
 
     sensorProcess_param.sched_priority = rt_max_prio - SENSOR_PROCESS_PRIO;
     pthread_attr_setschedparam(&sensorProcess_attr, &sensorProcess_param);
+    
 }
 
 void set_alarm_sched(void) {
+    int coreid  = 0;
+    cpu_set_t threadcpu;
+
+    CPU_ZERO(&threadcpu);
+    CPU_SET(coreid, &threadcpu);
+    printf("\nalarm thread set to run on core %d", coreid);
+
     pthread_attr_init(&alarm_attr);
     pthread_attr_setinheritsched(&alarm_attr, PTHREAD_EXPLICIT_SCHED);
     pthread_attr_setschedpolicy(&alarm_attr, SCHED_FIFO);
+    pthread_attr_setaffinity_np(&alarm_attr, sizeof(cpu_set_t), &threadcpu);
 
     alarm_param.sched_priority = rt_max_prio - ALARM_PRIO;
     pthread_attr_setschedparam(&alarm_attr, &alarm_param);
@@ -128,6 +163,9 @@ void set_main_sched(void) {
 }
 
 int main() {
+    cpu_set_t allcpuset;
+    int num_processors = get_nprocs_conf();
+
 /* ---------------------- init pigpio library ---------------------- */
     printf("Initializing pigpio... ");
     int ret = gpioInitialise();
@@ -140,6 +178,13 @@ int main() {
 
 /* ---------------------- configure scheduling ---------------------- */
     print_scheduler();
+    printf("\nThis system has %d processors configured and %d processors available.", num_processors, get_nprocs());
+    CPU_ZERO(&allcpuset);
+    for(int i = 0; i < num_processors; i++)
+        CPU_SET(i, &allcpuset);
+    num_processors = NUM_CPUS;
+    printf("\nRunning all threads on %d CPU core(s)", num_processors);
+
     set_main_sched();
     set_alarm_sched();
     set_sensorRx_sched();

@@ -13,8 +13,11 @@
 
 #include <pigpio.h>
 
-static double sensorData    = 0;
-static double range         = 0;
+//static double sensorData    = 0;
+//static double range         = 0;
+
+static double sensorData        = 0;
+static ObjectData_t objectData  = {};
 
 /* HC-SR04 TRIG is connected to GPIO23 (physical pin 16) */
 static const unsigned int TRIG_PIN  = 23;  
@@ -23,23 +26,39 @@ static const unsigned int ECHO_PIN  = 24;
 /* Speed of sound at sea level, m/s*/
 static const double SPEED_OF_SOUND  = 343.00;
 /* meters to cm */
-static const double M_TO_CM  = 100;
+static const double M_TO_CM     = 100;
 /* seconds to microseconds */
 static const double SEC_TO_US  = 1000000;
 
-sem_t dataSem;
-sem_t rangeSem;
+sem_t objectDataSem;
+sem_t sensorDataSem;
 
-int lockRangeSem(void) {
-    return sem_wait(&rangeSem);
+// int lockRangeSem(void) {
+//     return sem_wait(&rangeSem);
+// }
+
+// int unlockRangeSem(void) {
+//     return sem_post(&rangeSem);
+// }
+
+int lockObjectData(void) {
+    return sem_wait(&objectDataSem);
 }
 
-int unlockRangeSem(void) {
-    return sem_post(&rangeSem);
+int unlockObjectData(void) {
+    return sem_post(&objectDataSem);
 }
 
-double getRange(void) {
-    return range;
+int lockSensorData(void) {
+    return sem_wait(&sensorDataSem);
+}
+
+int unlockSensorData(void) {
+    return sem_post(&sensorDataSem);
+}
+
+ObjectData_t *getObjectData(void) {
+    return *objectData;
 }
 
 /* error check for individual gpio init */
@@ -88,10 +107,12 @@ void echo(int pin, int level, uint32_t time_us) {
     }
 /* get pulse travel time from start tick and current tick when level drops */
     else if(level == PI_OFF) {
-        sem_wait(&dataSem);
+        if(lockSensorData()) {
+            printf("\nCouldn't lock sensorData!");
+            continue;
+        }
         sensorData = (double)time_us - start_us;
-        //printf("\nsensorData: %d", sensorData);
-        sem_post(&dataSem);
+        unlockSensorData();
     }
 }
 
@@ -101,23 +122,20 @@ void echo(int pin, int level, uint32_t time_us) {
  *  divide by 2 as the sonar pulse is travelling to the object and back
 */
 void *sensorProcess_func(void *threadp) {
-    double prev_time    = 0;
-    double time_us      = 0;
-    double prev_range   = 0;
-    double range_cm     = 0;
-
     while(1) {
-        prev_time   = time_us;
-        prev_range  = range_cm;
-
-    /* lock sensor data and range while we update */
-        sem_wait(&dataSem);
+    /* lock sensor and object data while we update */
+        lockSensorData();
         lockRangeSem();
-        time_us     = sensorData;
-        range_cm    = ((time_us * SPEED_OF_SOUND * (M_TO_CM / SEC_TO_US)) / 2);
-        range       = range_cm;
-        //printf("\nrange: %.02f | sensorData: %d", range, sensorData);
-        sem_post(&dataSem);
+        // time_us     = sensorData;
+        // range_cm    = ((time_us * SPEED_OF_SOUND * (M_TO_CM / SEC_TO_US)) / 2);
+        // range       = range_cm;
+
+        objectData.prev_echo_time   = objectData.echo_time;
+        objectData.prev_range       = objectData.range;
+        objectData.echo_time        = sensorData;
+        objectData.range            = ((objectData.echo_time * SPEED_OF_SOUND * (M_TO_CM / SEC_TO_US)) / 2);
+        
+        unlockSensorData();
         unlockRangeSem();
     }
 }
@@ -135,8 +153,8 @@ int configHCSR04(void) {
     }
     printf("Done!\n");
 
-    sem_init(&rangeSem, 0, 1);
-    sem_init(&dataSem,  0, 1);
+    sem_init(&objectDataSem, 0, 1);
+    sem_init(&sensorDataSem, 0, 1);
 
 /* turn off TRIG_PIN to start */
     gpioWrite(TRIG_PIN, PI_OFF);

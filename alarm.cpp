@@ -13,11 +13,11 @@
 static const unsigned int LED_PIN = 26;
 
 /* delays are in microseconds */
-static const unsigned int DELAY_2_SEC   = 2000000;
 static const unsigned int DELAY_1_SEC   = 1000000;
 static const unsigned int DELAY_500MS   = 500000;
 static const unsigned int DELAY_250MS   = 250000;
 static const unsigned int DELAY_100MS   = 100000;
+static const unsigned int DELAY_50MS    = 50000;
 
 /* ranges in cm */
 static const double MAX_RANGE     = 300;
@@ -28,33 +28,34 @@ static const double DANGER_RANGE  = 50;
 void *alarm_func(void *threadp) {
     uint32_t delay  = 0;
     double range    = 0;
+    ObjectData_t *obj;
 
     while(1) {
     /* skip over current iteration if we can't lock the semaphore */
-        if(lockRangeSem()) {
+        if(lockObjectData()) {
             printf("\nCouldn't lock rangeSem!");
             continue;
         }
-        range = getRange();
-        unlockRangeSem();
+        obj = getObjectData();
+        unlocklockObjectData();
 
-        if(range > MAX_RANGE) {
-            delay = DELAY_2_SEC;
+        if(obj->range > MAX_RANGE) {
+            delay = DELAY_1_SEC;
         }
-        else if(range > MID_RANGE) {
-            delay = DELAY_1_SEC; 
+        else if(obj->range > MID_RANGE) {
+            delay = DELAY_500MS; 
         }
-        else if(range > CLOSE_RANGE) {
-            delay = DELAY_500MS;
-        }
-        else if(range > DANGER_RANGE) {
+        else if(obj->range > CLOSE_RANGE) {
             delay = DELAY_250MS;
         }
-        else{
+        else if(obj->range > DANGER_RANGE) {
             delay = DELAY_100MS;
         }
+        else{
+            delay = DELAY_50MS;
+        }
 
-        printf("\nObject Detected! Range: %.02f", range);
+        printf("\nObject Detected! Range: %.02f", obj->range);
         gpioWrite(LED_PIN, PI_ON);
         gpioDelay(delay);
         gpioWrite(LED_PIN, PI_OFF);
