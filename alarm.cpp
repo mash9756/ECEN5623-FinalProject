@@ -28,19 +28,11 @@ static const double DANGER_RANGE  = 50;
 void *alarm_func(void *threadp) {
     uint32_t delay  = 0;
     double range    = 0;
-    ObjectData_t *obj;
+    ObjectData_t *obj = getObjectData();
 
     while(1) {
-    /* skip over current iteration if we can't lock the semaphore */
-        if(lockObjectData()) {
-            printf("\nCouldn't lock rangeSem!");
-            continue;
-        }
-        obj = getObjectData();
-        lockObjectData();
-
         if(obj->range > MAX_RANGE) {
-            delay = DELAY_1_SEC;
+            continue;
         }
         else if(obj->range > MID_RANGE) {
             delay = DELAY_500MS; 
