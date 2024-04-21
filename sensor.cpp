@@ -33,10 +33,17 @@ static const double SEC_TO_US  = 1000000;
 sem_t dataSem;
 sem_t rangeSem;
 
-/* WCET timing */
-struct timespec start   = {0, 0};
-struct timespec finish  = {0, 0};
-struct timespec WCET    = {0, 0};
+/* sensorRx WCET timing */
+static struct timespec sensorRxWCET     = {0, 0};
+struct timespec sensorRxStart           = {0, 0};
+struct timespec sensorRxFinish          = {0, 0};
+struct timespec sensorRxDelta           = {0, 0};
+
+/* sensorProcess WCET timing */
+static struct timespec sensorProcessWCET    = {0, 0};
+struct timespec sensorProcessStart          = {0, 0};
+struct timespec sensorProcessFinish         = {0, 0};
+struct timespec sensorProcessDelta          = {0, 0};
 
 int lockRangeSem(void) {
     return sem_wait(&rangeSem);
@@ -87,7 +94,8 @@ void echo(int pin, int level, uint32_t time_us) {
     double diff_us = 0;
     double range_cm = 0;
 
-    clock_gettime(CLOCK_REALTIME, &start);
+    clock_gettime(CLOCK_REALTIME, &sensorRxStart);
+
     if(!first_us) {
         first_us = (double)time_us;
     }
@@ -102,9 +110,15 @@ void echo(int pin, int level, uint32_t time_us) {
         //printf("\nsensorData: %d", sensorData);
         sem_post(&dataSem);
     }
-    delta_t(&finish, &start, &WCET);
-    //syslog(LOG_NOTICE, "\talarm WCET %lf msec\n", timestamp(&WCET));
-    printf("\tsensorRx WCET %lf msec\n", timestamp(&WCET));
+
+    clock_gettime(CLOCK_REALTIME, &sensorRxFinish);
+    delta_t(&sensorRxFinish, &sensorRxStart, &sensorRxDelta);
+    if(timestamp(&sensorRxDelta) > timestamp(&sensorRxWCET)) {
+        sensorRxWCET.tv_sec    = sensorRxDelta.tv_sec;
+        sensorRxWCET.tv_nsec   = sensorRxDelta.tv_nsec;
+        printf("\nsensorRx WCET %lfms\n", timestamp(&sensorRxWCET));
+        //syslog(LOG_NOTICE, "\talarm WCET %lf msec\n", timestamp(&WCET));
+    }
 }
 
 /**
@@ -119,7 +133,7 @@ void *sensorProcess_func(void *threadp) {
     double range_cm     = 0;
 
     while(1) {
-        clock_gettime(CLOCK_REALTIME, &start);
+        clock_gettime(CLOCK_REALTIME, &sensorProcessStart);
 
         prev_time   = time_us;
         prev_range  = range_cm;
@@ -134,9 +148,14 @@ void *sensorProcess_func(void *threadp) {
         sem_post(&dataSem);
         unlockRangeSem();
 
-        delta_t(&finish, &start, &WCET);
-        //syslog(LOG_NOTICE, "\talarm WCET %lf msec\n", timestamp(&WCET));
-        printf("\tsensorProcess WCET %lf msec\n", timestamp(&WCET));
+        clock_gettime(CLOCK_REALTIME, &sensorProcessFinish);
+        delta_t(&sensorProcessFinish, &sensorProcessStart, &sensorProcessDelta);
+        if(timestamp(&sensorProcessDelta) > timestamp(&sensorProcessWCET)) {
+            sensorProcessWCET.tv_sec    = sensorProcessDelta.tv_sec;
+            sensorProcessWCET.tv_nsec   = sensorProcessDelta.tv_nsec;
+            printf("\tsensorProcess WCET %lfms\n", timestamp(&sensorProcessWCET));
+            //syslog(LOG_NOTICE, "\talarm WCET %lf msec\n", timestamp(&WCET));
+        }
     }
 }
 

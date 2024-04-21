@@ -11,25 +11,16 @@
 #include "misc.h"
 
 /* LED is connected to GPIO26 (physical pin 37) */ 
-static const unsigned int LED_PIN = 26;
+static const unsigned int LED_PIN       = 26;
+static const unsigned int ALARM_TIMER   = 1;
 
-/* delays are in microseconds */
-static const unsigned int DELAY_2_SEC   = 2000000;
-static const unsigned int DELAY_1_SEC   = 1000000;
-static const unsigned int DELAY_500MS   = 500000;
-static const unsigned int DELAY_250MS   = 250000;
-static const unsigned int DELAY_100MS   = 100000;
-
-/* ranges in cm */
-static const double MAX_RANGE     = 300;
-static const double MID_RANGE     = 200;
-static const double CLOSE_RANGE   = 100;
-static const double DANGER_RANGE  = 50;
-
-/* WCET timing */
-struct timespec start   = {0, 0};
-struct timespec finish  = {0, 0};
-struct timespec WCET    = {0, 0};
+/* delays are in ms */
+static const unsigned int DELAY_2_SEC   = 2000;
+static const unsigned int DELAY_1_SEC   = 1000;
+static const unsigned int DELAY_500MS   = 500;
+static const unsigned int DELAY_250MS   = 250;
+static const unsigned int DELAY_100MS   = 100;
+static const unsigned int DELAY_50MS    = 50;
 
 /**
  *  > 300 we do nothing
@@ -38,13 +29,29 @@ struct timespec WCET    = {0, 0};
  *  100 - 50    led blinks faster, buzzer faster
  *  < 50        max blink / buzzer
 */
+/* ranges in cm */
+static const double MAX_RANGE     = 300;
+static const double MID_RANGE     = 200;
+static const double CLOSE_RANGE   = 100;
+static const double DANGER_RANGE  = 50;
+
+/* WCET timing */
+static struct timespec alarmWCET    = {0, 0};
+struct timespec alarmStart          = {0, 0};
+struct timespec alarmFinish         = {0, 0};
+struct timespec alarmDelta          = {0, 0};
+
+void toggleLED(void) {
+    int level = gpioRead(LED_PIN);
+    gpioWrite(LED_PIN, !level);
+}
 
 void *alarm_func(void *threadp) {
     uint32_t delay  = 0;
     double range    = 0;
 
     while(1) {
-        clock_gettime(CLOCK_REALTIME, &start);
+        clock_gettime(CLOCK_REALTIME, &alarmStart);
 
     /* skip over current iteration if we can't lock the semaphore */
         if(lockRangeSem()) {
@@ -55,30 +62,32 @@ void *alarm_func(void *threadp) {
         unlockRangeSem();
 
         if(range > MAX_RANGE) {
-            delay = DELAY_2_SEC;
+            //delay = DELAY_1_SEC;
+            continue;
         }
         else if(range > MID_RANGE) {
-            delay = DELAY_1_SEC; 
+            delay = DELAY_500MS; 
         }
         else if(range > CLOSE_RANGE) {
-            delay = DELAY_500MS;
-        }
-        else if(range > DANGER_RANGE) {
             delay = DELAY_250MS;
         }
-        else{
+        else if(range > DANGER_RANGE) {
             delay = DELAY_100MS;
         }
-/* probably need external timer or counter instead of delay */
-        printf("Object Detected! Range: %.02f\n", range);
-        gpioWrite(LED_PIN, PI_ON);
-        gpioDelay(delay);
-        gpioWrite(LED_PIN, PI_OFF);
-        gpioDelay(delay);
+        else{
+            delay = DELAY_50MS;
+        }
+        //printf("Object Detected! Range: %.02f\n", range);
+        gpioSetTimerFunc(1, delay, toggleLED);
 
-        delta_t(&finish, &start, &WCET);
-        //syslog(LOG_NOTICE, "\talarm WCET %lf msec\n", timestamp(&WCET));
-        printf("\talarm WCET %lf msec\n", timestamp(&WCET));
+        clock_gettime(CLOCK_REALTIME, &alarmFinish);
+        delta_t(&alarmFinish, &alarmStart, &alarmDelta);
+        if(timestamp(&alarmDelta) > timestamp(&alarmWCET)) {
+            alarmWCET.tv_sec    = alarmDelta.tv_sec;
+            alarmWCET.tv_nsec   = alarmDelta.tv_nsec;
+            printf("\talarm WCET %lfms\n", timestamp(&alarmWCET));
+            //syslog(LOG_NOTICE, "\talarm WCET %lf msec\n", timestamp(&WCET));
+        }
     }
     return NULL;
 }

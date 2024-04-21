@@ -16,9 +16,11 @@ using namespace cv;
 static const int ESCAPE_KEY = 27;
 
 /* WCET timing */
-struct timespec start   = {0, 0};
-struct timespec finish  = {0, 0};
-struct timespec WCET    = {0, 0};
+static struct timespec liveStreamWCET   = {0, 0};
+struct timespec liveStreamStart         = {0, 0};
+struct timespec liveStreamFinish        = {0, 0};
+struct timespec liveStreamDelta         = {0, 0};
+
 
 void *liveStream_func(void *threadp) {
     VideoCapture cam0(0);
@@ -33,7 +35,7 @@ void *liveStream_func(void *threadp) {
     cam0.set(CAP_PROP_FRAME_HEIGHT, 480);
 
     while (1) {
-        clock_gettime(CLOCK_REALTIME, &start);
+        clock_gettime(CLOCK_REALTIME, &liveStreamStart);
 
         Mat frame;
         cam0.read(frame);
@@ -42,10 +44,15 @@ void *liveStream_func(void *threadp) {
         if ((winInput = waitKey(10)) == ESCAPE_KEY) {
             break;
         }
-
-        delta_t(&finish, &start, &WCET);
-        //syslog(LOG_NOTICE, "\talarm WCET %lf msec\n", timestamp(&WCET));
-        printf("\tliveStream WCET %lf msec\n", timestamp(&WCET));
+        
+        clock_gettime(CLOCK_REALTIME, &liveStreamFinish);
+        delta_t(&liveStreamFinish, &liveStreamStart, &liveStreamDelta);
+        if(timestamp(&liveStreamDelta) > timestamp(&liveStreamWCET)) {
+            liveStreamWCET.tv_sec    = liveStreamDelta.tv_sec;
+            liveStreamWCET.tv_nsec   = liveStreamDelta.tv_nsec;
+            printf("\tliveStream WCET %lfms\n", timestamp(&liveStreamWCET));
+            //syslog(LOG_NOTICE, "\talarm WCET %lf msec\n", timestamp(&WCET));
+        }
     }
     destroyWindow("video_display"); 
     return NULL;
