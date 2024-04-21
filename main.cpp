@@ -68,7 +68,7 @@ void set_liveStream_sched(void) {
 
     CPU_ZERO(&threadcpu);
     CPU_SET(coreid, &threadcpu);
-    printf("\nliveStream thread set to run on core %d", coreid);
+    printf("liveStream thread set to run on core %d\n", coreid);
 
     pthread_attr_init(&liveStream_attr);
     pthread_attr_setinheritsched(&liveStream_attr, PTHREAD_EXPLICIT_SCHED);
@@ -80,17 +80,17 @@ void set_liveStream_sched(void) {
 }
 
 void set_sensorRx_sched(void) {
-    int coreid  = 0;
-    cpu_set_t threadcpu;
+    //int coreid  = 0;
+    //cpu_set_t threadcpu;
 
-    CPU_ZERO(&threadcpu);
-    CPU_SET(coreid, &threadcpu);
-    printf("\nsensorRx thread set to run on core %d", coreid);
+    //CPU_ZERO(&threadcpu);
+    //CPU_SET(coreid, &threadcpu);
+    //printf("sensorRx thread set to run on core %d\n", coreid);
 
     pthread_attr_init(&sensorRx_attr);
     pthread_attr_setinheritsched(&sensorRx_attr, PTHREAD_EXPLICIT_SCHED);
     pthread_attr_setschedpolicy(&sensorRx_attr, SCHED_FIFO);
-    pthread_attr_setaffinity_np(&sensorRx_attr, sizeof(cpu_set_t), &threadcpu);
+    //pthread_attr_setaffinity_np(&sensorRx_attr, sizeof(cpu_set_t), &threadcpu);
 
     sensorRx_param.sched_priority = rt_max_prio - SENSOR_RX_PRIO;
     pthread_attr_setschedparam(&sensorRx_attr, &sensorRx_param);
@@ -102,7 +102,7 @@ void set_sensorProcess_sched(void) {
 
     CPU_ZERO(&threadcpu);
     CPU_SET(coreid, &threadcpu);
-    printf("\nsensorProcess thread set to run on core %d", coreid);
+    printf("sensorProcess thread set to run on core %d\n", coreid);
 
     pthread_attr_init(&sensorProcess_attr);
     pthread_attr_setinheritsched(&sensorProcess_attr, PTHREAD_EXPLICIT_SCHED);
@@ -115,17 +115,17 @@ void set_sensorProcess_sched(void) {
 }
 
 void set_alarm_sched(void) {
-    int coreid  = 0;
-    cpu_set_t threadcpu;
+    //int coreid  = 0;
+    //cpu_set_t threadcpu;
 
-    CPU_ZERO(&threadcpu);
-    CPU_SET(coreid, &threadcpu);
-    printf("\nalarm thread set to run on core %d", coreid);
+    //CPU_ZERO(&threadcpu);
+    //CPU_SET(coreid, &threadcpu);
+    //printf("alarm thread set to run on core %d\n", coreid);
 
     pthread_attr_init(&alarm_attr);
     pthread_attr_setinheritsched(&alarm_attr, PTHREAD_EXPLICIT_SCHED);
     pthread_attr_setschedpolicy(&alarm_attr, SCHED_FIFO);
-    pthread_attr_setaffinity_np(&alarm_attr, sizeof(cpu_set_t), &threadcpu);
+    //pthread_attr_setaffinity_np(&alarm_attr, sizeof(cpu_set_t), &threadcpu);
 
     alarm_param.sched_priority = rt_max_prio - ALARM_PRIO;
     pthread_attr_setschedparam(&alarm_attr, &alarm_param);
@@ -205,7 +205,7 @@ int main() {
     }
 
 /* create threads for each service */
-    pthread_create(&liveStream_thread,      &liveStream_attr,       liveStream_func,     NULL);
+    //pthread_create(&liveStream_thread,      &liveStream_attr,       liveStream_func,     NULL);
     pthread_create(&alarm_thread,           &alarm_attr,            alarm_func,          NULL);
     pthread_create(&sensorProcess_thread,   &sensorProcess_attr,    sensorProcess_func,  NULL);
     //pthread_create(&sensorRx_thread,        &sensorRx_attr,         sensorRx_func,       NULL);

@@ -12,6 +12,7 @@
 #include <unistd.h>
 
 #include <pigpio.h>
+#include "sensor.h"
 
 //static double sensorData    = 0;
 //static double range         = 0;
@@ -58,7 +59,7 @@ int unlockSensorData(void) {
 }
 
 ObjectData_t *getObjectData(void) {
-    return *objectData;
+    return &objectData;
 }
 
 /* error check for individual gpio init */
@@ -109,9 +110,10 @@ void echo(int pin, int level, uint32_t time_us) {
     else if(level == PI_OFF) {
         if(lockSensorData()) {
             printf("\nCouldn't lock sensorData!");
-            continue;
         }
-        sensorData = (double)time_us - start_us;
+        else {
+            sensorData = (double)time_us - start_us;
+        }
         unlockSensorData();
     }
 }
@@ -125,7 +127,7 @@ void *sensorProcess_func(void *threadp) {
     while(1) {
     /* lock sensor and object data while we update */
         lockSensorData();
-        lockRangeSem();
+        lockObjectData();
         // time_us     = sensorData;
         // range_cm    = ((time_us * SPEED_OF_SOUND * (M_TO_CM / SEC_TO_US)) / 2);
         // range       = range_cm;
@@ -136,7 +138,7 @@ void *sensorProcess_func(void *threadp) {
         objectData.range            = ((objectData.echo_time * SPEED_OF_SOUND * (M_TO_CM / SEC_TO_US)) / 2);
         
         unlockSensorData();
-        unlockRangeSem();
+        unlockObjectData();
     }
 }
 

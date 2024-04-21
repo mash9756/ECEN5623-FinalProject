@@ -37,7 +37,7 @@ void *alarm_func(void *threadp) {
             continue;
         }
         obj = getObjectData();
-        unlocklockObjectData();
+        lockObjectData();
 
         if(obj->range > MAX_RANGE) {
             delay = DELAY_1_SEC;
