@@ -15,8 +15,8 @@
 
 #include "misc.h"
 
-static double sensorData    = 0;
-static double range         = 0;
+static sensorData_t sensorData = {};
+static objectData_t objectData = {};
 
 /* HC-SR04 TRIG is connected to GPIO23 (physical pin 16) */
 static const unsigned int TRIG_PIN  = 23;  
@@ -30,8 +30,8 @@ static const double M_TO_CM  = 100;
 static const double SEC_TO_US  = 1000000;
 
 /* locking for sensor raw data and calculated range */
-sem_t dataSem;
-sem_t rangeSem;
+sem_t sensorDataSem;
+sem_t objectDataSem;
 
 /* sensorRx WCET timing */
 static struct timespec sensorRxWCET     = {0, 0};
@@ -45,16 +45,24 @@ struct timespec sensorProcessStart          = {0, 0};
 struct timespec sensorProcessFinish         = {0, 0};
 struct timespec sensorProcessDelta          = {0, 0};
 
-int lockRangeSem(void) {
-    return sem_wait(&rangeSem);
+int lockObjectData(void) {
+    return sem_wait(&objectDataSem);
 }
 
-int unlockRangeSem(void) {
-    return sem_post(&rangeSem);
+int unlockObjectData(void) {
+    return sem_post(&objectDataSem);
 }
 
-double getRange(void) {
-    return range;
+int lockSensorData(void) {
+    return sem_wait(&sensorDataSem);
+}
+
+int unlockSensorData(void) {
+    return sem_post(&sensorDataSem);
+}
+
+double *getObjectData(void) {
+    return *objectData;
 }
 
 /* error check for individual gpio init */
@@ -107,7 +115,6 @@ void echo(int pin, int level, uint32_t time_us) {
     else if(level == PI_OFF) {
         sem_wait(&dataSem);
         sensorData = (double)time_us - start_us;
-        //printf("\nsensorData: %d", sensorData);
         sem_post(&dataSem);
     }
 
@@ -121,32 +128,67 @@ void echo(int pin, int level, uint32_t time_us) {
     }
 }
 
+void *sensorRx_func(void *threadp) {
+    int level       = 0;
+    double start_us = 0;
+    double read_us  = 0;
+
+    while(1) {
+        clock_gettime(CLOCK_REALTIME, &sensorRxStart);
+
+        level = gpioRead(ECHO_PIN);
+        if(ret == PI_BAD_GPIO) {
+        /* gpio read failed, return */
+            return;
+        }
+        
+    /* get start tick when high detected */
+        if(level == PI_ON) {
+            start_us = (double)gpioTick();
+            while(level != PI_OFF) {
+            /* do nothing, wait for falling edge */
+            /* look into gpioSetWatchdog for possible safety */
+            }
+            lockSensorData();
+            read_us = (double)gpioTick();
+            sensorData.prevReadTime = sensorData.readTime;
+            sensorData.readTime = read_us;
+            sensorData.echoTime = read_us - start_us;
+            unlockSensorData():
+        }
+
+        clock_gettime(CLOCK_REALTIME, &sensorRxFinish);
+        delta_t(&sensorRxFinish, &sensorRxStart, &sensorRxDelta);
+        if(timestamp(&sensorRxDelta) > timestamp(&sensorRxWCET)) {
+            sensorRxWCET.tv_sec    = sensorRxDelta.tv_sec;
+            sensorRxWCET.tv_nsec   = sensorRxDelta.tv_nsec;
+            printf("\nsensorRx WCET %lfms\n", timestamp(&sensorRxWCET));
+            //syslog(LOG_NOTICE, "\talarm WCET %lf msec\n", timestamp(&WCET));
+        }
+    }
+}
+
 /**
  *  distance = rate * time, rate = speed of sound, time is in microseconds
  *  convert m/s to cm/us to get distance in cm
  *  divide by 2 as the sonar pulse is travelling to the object and back
 */
 void *sensorProcess_func(void *threadp) {
-    double prev_time    = 0;
-    double time_us      = 0;
-    double prev_range   = 0;
-    double range_cm     = 0;
-
     while(1) {
         clock_gettime(CLOCK_REALTIME, &sensorProcessStart);
 
-        prev_time   = time_us;
-        prev_range  = range_cm;
-
-    /* lock sensor data and range while we update */
-        sem_wait(&dataSem);
-        lockRangeSem();
-        time_us     = sensorData;
-        range_cm    = ((time_us * SPEED_OF_SOUND * (M_TO_CM / SEC_TO_US)) / 2);
-        range       = range_cm;
+    /* lock sensor data and range while we process the data */
+        lockObjectData();
+        locklockSensorData();
+    /* save previous distance for velocity calc */
+        objectData.prevRange_cm = objectData.range_cm;
+    /* calculate latest detected range */
+        objectData.range_cm     = ((sensorData.echoTime * SPEED_OF_SOUND * (M_TO_CM / SEC_TO_US)) / 2);
+    /* calculate velocity based on time between detections and range difference */
+        objectData.velocity     = (objectData.prevRange_cm - objectData.range_cm) / (sensorDAta.prevReadTime - sensorData.readTime);
         //printf("\nrange: %.02f | sensorData: %d", range, sensorData);
-        sem_post(&dataSem);
-        unlockRangeSem();
+        unlocklockSensorData();
+        unlockObjectData();
 
         clock_gettime(CLOCK_REALTIME, &sensorProcessFinish);
         delta_t(&sensorProcessFinish, &sensorProcessStart, &sensorProcessDelta);
@@ -178,9 +220,9 @@ int configHCSR04(void) {
 /* turn off TRIG_PIN to start */
     gpioWrite(TRIG_PIN, PI_OFF);
 /* setup timer to trigger the sonar sensor every 50ms */
-    gpioSetTimerFunc(0, 50, trigger);
+    gpioSetTimerFunc(TRIGGER_TIMER, 50, trigger);
 /* setup callback when level change detected on ECHO pin */
-    gpioSetAlertFunc(ECHO_PIN, echo);
+    //gpioSetAlertFunc(ECHO_PIN, echo);
 
     return 0;    
 }

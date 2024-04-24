@@ -12,7 +12,6 @@
 
 /* LED is connected to GPIO26 (physical pin 37) */ 
 static const unsigned int LED_PIN       = 26;
-static const unsigned int ALARM_TIMER   = 1;
 
 /* delays are in ms */
 static const unsigned int DELAY_2_SEC   = 2000;
@@ -30,10 +29,10 @@ static const unsigned int DELAY_50MS    = 50;
  *  < 50        max blink / buzzer
 */
 /* ranges in cm */
-static const double MAX_RANGE     = 300;
-static const double MID_RANGE     = 200;
-static const double CLOSE_RANGE   = 100;
-static const double DANGER_RANGE  = 50;
+static const double MAX_RANGE     = 300.00;
+static const double MID_RANGE     = 200.00;
+static const double CLOSE_RANGE   = 100.00;
+static const double DANGER_RANGE  = 50.00;
 
 /* WCET timing */
 static struct timespec alarmWCET    = {0, 0};
@@ -48,37 +47,35 @@ void toggleLED(void) {
 
 void *alarm_func(void *threadp) {
     uint32_t delay  = 0;
-    double range    = 0;
+    objectData_t objData = 0;
 
     while(1) {
         clock_gettime(CLOCK_REALTIME, &alarmStart);
 
-    /* skip over current iteration if we can't lock the semaphore */
-        if(lockRangeSem()) {
-            printf("Couldn't lock rangeSem!\n");
-            continue;
-        }
-        range = getRange();
-        unlockRangeSem();
+    /* lock objectData for alarm determinations */
+        lockObjectData();
+        &objData = getObjectData();
+        unlockObjectData();
 
-        if(range > MAX_RANGE) {
-            //delay = DELAY_1_SEC;
+        if(objData->range_cm > MAX_RANGE) {
+        /* disable the timer if object detected is outside max range */
+            gpioSetTimerFunc(ALARM_TIMER, 0, NULL);
             continue;
         }
-        else if(range > MID_RANGE) {
+        else if(objData->range_cm > MID_RANGE) {
             delay = DELAY_500MS; 
         }
-        else if(range > CLOSE_RANGE) {
+        else if(objData->range_cm > CLOSE_RANGE) {
             delay = DELAY_250MS;
         }
-        else if(range > DANGER_RANGE) {
+        else if(objData->range_cm > DANGER_RANGE) {
             delay = DELAY_100MS;
         }
         else{
             delay = DELAY_50MS;
         }
         //printf("Object Detected! Range: %.02f\n", range);
-        gpioSetTimerFunc(1, delay, toggleLED);
+        gpioSetTimerFunc(ALARM_TIMER, delay, toggleLED);
 
         clock_gettime(CLOCK_REALTIME, &alarmFinish);
         delta_t(&alarmFinish, &alarmStart, &alarmDelta);
