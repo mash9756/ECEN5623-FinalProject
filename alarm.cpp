@@ -47,14 +47,14 @@ void toggleLED(void) {
 
 void *alarm_func(void *threadp) {
     uint32_t delay  = 0;
-    objectData_t objData = 0;
+    objectData_t *objData;
 
     while(1) {
         clock_gettime(CLOCK_REALTIME, &alarmStart);
 
     /* lock objectData for alarm determinations */
         lockObjectData();
-        &objData = getObjectData();
+        objData = getObjectData();
         unlockObjectData();
 
         if(objData->range_cm > MAX_RANGE) {
@@ -74,7 +74,9 @@ void *alarm_func(void *threadp) {
         else{
             delay = DELAY_50MS;
         }
-        //printf("Object Detected! Range: %.02f\n", range);
+        //printf("Object Detected!\n");
+        //printf("PrevRange: %.02fcm | Range: %.02fcm\n", objData->prevRange_cm, objData->range_cm);
+        //printf("Velocity: %.02fcm/s\n", objData->velocity);
         gpioSetTimerFunc(ALARM_TIMER, delay, toggleLED);
 
         clock_gettime(CLOCK_REALTIME, &alarmFinish);

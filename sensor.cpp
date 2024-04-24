@@ -14,6 +14,7 @@
 #include <pigpio.h>
 
 #include "misc.h"
+#include "sensor.h"
 
 static sensorData_t sensorData = {};
 static objectData_t objectData = {};
@@ -61,8 +62,8 @@ int unlockSensorData(void) {
     return sem_post(&sensorDataSem);
 }
 
-double *getObjectData(void) {
-    return *objectData;
+objectData_t *getObjectData(void) {
+    return &objectData;
 }
 
 /* error check for individual gpio init */
@@ -96,37 +97,37 @@ void trigger(void) {
 }
 
 /* tick is microseconds since boot, wraps every ~72 mins */
-void echo(int pin, int level, uint32_t time_us) {
-    static double start_us = 0;
-    static double first_us = 0;
-    double diff_us = 0;
-    double range_cm = 0;
-
-    clock_gettime(CLOCK_REALTIME, &sensorRxStart);
-
-    if(!first_us) {
-        first_us = (double)time_us;
-    }
-/* get start tick when high detected */
-    if(level == PI_ON) {
-        start_us = (double)time_us;
-    }
-/* get pulse travel time from start tick and current tick when level drops */
-    else if(level == PI_OFF) {
-        sem_wait(&dataSem);
-        sensorData = (double)time_us - start_us;
-        sem_post(&dataSem);
-    }
-
-    clock_gettime(CLOCK_REALTIME, &sensorRxFinish);
-    delta_t(&sensorRxFinish, &sensorRxStart, &sensorRxDelta);
-    if(timestamp(&sensorRxDelta) > timestamp(&sensorRxWCET)) {
-        sensorRxWCET.tv_sec    = sensorRxDelta.tv_sec;
-        sensorRxWCET.tv_nsec   = sensorRxDelta.tv_nsec;
-        printf("\nsensorRx WCET %lfms\n", timestamp(&sensorRxWCET));
-        //syslog(LOG_NOTICE, "\talarm WCET %lf msec\n", timestamp(&WCET));
-    }
-}
+// void echo(int pin, int level, uint32_t time_us) {
+//     static double start_us = 0;
+//     static double first_us = 0;
+//     double diff_us = 0;
+//     double range_cm = 0;
+//
+//     clock_gettime(CLOCK_REALTIME, &sensorRxStart);
+//
+//     if(!first_us) {
+//         first_us = (double)time_us;
+//     }
+// /* get start tick when high detected */
+//     if(level == PI_ON) {
+//         start_us = (double)time_us;
+//     }
+// /* get pulse travel time from start tick and current tick when level drops */
+//     else if(level == PI_OFF) {
+//         lockSensorData();
+//         sensorData = (double)time_us - start_us;
+//         unlockSensorData();
+//     }
+//
+//     clock_gettime(CLOCK_REALTIME, &sensorRxFinish);
+//     delta_t(&sensorRxFinish, &sensorRxStart, &sensorRxDelta);
+//     if(timestamp(&sensorRxDelta) > timestamp(&sensorRxWCET)) {
+//         sensorRxWCET.tv_sec    = sensorRxDelta.tv_sec;
+//         sensorRxWCET.tv_nsec   = sensorRxDelta.tv_nsec;
+//         printf("\nsensorRx WCET %lfms\n", timestamp(&sensorRxWCET));
+//         //syslog(LOG_NOTICE, "\talarm WCET %lf msec\n", timestamp(&WCET));
+//     }
+// }
 
 void *sensorRx_func(void *threadp) {
     int level       = 0;
@@ -137,9 +138,9 @@ void *sensorRx_func(void *threadp) {
         clock_gettime(CLOCK_REALTIME, &sensorRxStart);
 
         level = gpioRead(ECHO_PIN);
-        if(ret == PI_BAD_GPIO) {
+        if(level == PI_BAD_GPIO) {
         /* gpio read failed, return */
-            return;
+            continue;
         }
         
     /* get start tick when high detected */
@@ -149,12 +150,13 @@ void *sensorRx_func(void *threadp) {
             /* do nothing, wait for falling edge */
             /* look into gpioSetWatchdog for possible safety */
             }
-            lockSensorData();
+            //lockSensorData();
             read_us = (double)gpioTick();
             sensorData.prevReadTime = sensorData.readTime;
             sensorData.readTime = read_us;
             sensorData.echoTime = read_us - start_us;
-            unlockSensorData():
+            printf("sensorData: Prev %.02f | Curr %.02f | Echo %.02f", sensorData.prevReadTime, sensorData.readTime, sensorData.echoTime);
+            //unlockSensorData();
         }
 
         clock_gettime(CLOCK_REALTIME, &sensorRxFinish);
@@ -179,15 +181,15 @@ void *sensorProcess_func(void *threadp) {
 
     /* lock sensor data and range while we process the data */
         lockObjectData();
-        locklockSensorData();
+        lockSensorData();
     /* save previous distance for velocity calc */
         objectData.prevRange_cm = objectData.range_cm;
     /* calculate latest detected range */
         objectData.range_cm     = ((sensorData.echoTime * SPEED_OF_SOUND * (M_TO_CM / SEC_TO_US)) / 2);
     /* calculate velocity based on time between detections and range difference */
-        objectData.velocity     = (objectData.prevRange_cm - objectData.range_cm) / (sensorDAta.prevReadTime - sensorData.readTime);
+        objectData.velocity     = (objectData.prevRange_cm - objectData.range_cm) / (sensorData.prevReadTime - sensorData.readTime);
         //printf("\nrange: %.02f | sensorData: %d", range, sensorData);
-        unlocklockSensorData();
+        unlockSensorData();
         unlockObjectData();
 
         clock_gettime(CLOCK_REALTIME, &sensorProcessFinish);
@@ -214,8 +216,8 @@ int configHCSR04(void) {
     }
     printf("Done!\n");
 
-    sem_init(&rangeSem, 0, 1);
-    sem_init(&dataSem,  0, 1);
+    sem_init(&objectDataSem, 0, 1);
+    sem_init(&sensorDataSem, 0, 1);
 
 /* turn off TRIG_PIN to start */
     gpioWrite(TRIG_PIN, PI_OFF);

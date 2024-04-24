@@ -6,17 +6,19 @@
 #ifndef SENSOR_H_
 #define SENSOR_H_
 
-typedef struct {
+typedef struct sensorData
+{
     double echoTime;
     double prevReadTime;
     double readTime;
-} sensorData_t;
+}sensorData_t;
 
-typedef struct {
+typedef struct objectData
+{
     double prevRange_cm;
     double range_cm;
     double velocity;
-} objectData_t;
+}objectData_t;
 
 int configHCSR04(void);
 void *sensorProcess_func(void *threadp);
