@@ -133,30 +133,33 @@ void *sensorRx_func(void *threadp) {
     int level       = 0;
     double start_us = 0;
     double read_us  = 0;
+    bool hi_flag    = false;
 
     while(1) {
         clock_gettime(CLOCK_REALTIME, &sensorRxStart);
 
         level = gpioRead(ECHO_PIN);
         if(level == PI_BAD_GPIO) {
-        /* gpio read failed, return */
+        /* gpio read failed, skip */
             continue;
         }
-        
+
     /* get start tick when high detected */
-        if(level == PI_ON) {
+        if((level == PI_ON) && (!hi_flag)) {
             start_us = (double)gpioTick();
-            while(level != PI_OFF) {
-            /* do nothing, wait for falling edge */
-            /* look into gpioSetWatchdog for possible safety */
-            }
-            //lockSensorData();
+            hi_flag = true;
+        }
+
+        if((level == PI_OFF) && hi_flag) {
+            hi_flag = false;
+            
+            lockSensorData();
             read_us = (double)gpioTick();
             sensorData.prevReadTime = sensorData.readTime;
             sensorData.readTime = read_us;
             sensorData.echoTime = read_us - start_us;
             printf("sensorData: Prev %.02f | Curr %.02f | Echo %.02f", sensorData.prevReadTime, sensorData.readTime, sensorData.echoTime);
-            //unlockSensorData();
+            unlockSensorData();
         }
 
         clock_gettime(CLOCK_REALTIME, &sensorRxFinish);
