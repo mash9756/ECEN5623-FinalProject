@@ -33,8 +33,8 @@ static const double SEC_TO_US  = 1000000;
 /* locking for sensor data and processed object data */
 pthread_cond_t sensorDataReady  = PTHREAD_COND_INITIALIZER;
 pthread_mutex_t sensorDataMutex = PTHREAD_MUTEX_INITIALIZER;
-//pthread_cond_t objectDataReady  = PTHREAD_COND_INITIALIZER;
-//pthread_mutex_t objectDataMutex = PTHREAD_MUTEX_INITIALIZER;
+
+sem_t objectDataSem;
 
 /* sensorRx WCET timing */
 static struct timespec sensorRxWCET     = {0, 0};
@@ -49,7 +49,6 @@ struct timespec sensorProcessFinish         = {0, 0};
 struct timespec sensorProcessDelta          = {0, 0};
 
 static bool sensorDataFlag = false;
-//static bool objectDataFlag = false;
 
 void lockSensorData(void) {
     int ret = pthread_mutex_lock(&sensorDataMutex);
@@ -71,33 +70,13 @@ void waitSensorData(void) {
     }
 }
 
-// void lockObjectData(void) {
-//     int ret = pthread_mutex_lock(&objectDataMutex);
-//     if(ret) {
-//         perror("objectDataMutex");
-//         pthread_exit(NULL);
-//     }
-// }
+void lockObjectData(void) {
+    sem_wait(&objectDataSem);
+}
 
-// void unlockObjectData(void) {
-//     pthread_mutex_unlock(&objectDataMutex);
-// }
-
-// void waitObjectData(void) {
-//     int ret = pthread_cond_wait(&objectDataReady, &objectDataMutex);
-//     if(ret) {
-//         perror("objectDataReady");
-//         pthread_exit(NULL);
-//     }
-// }
-
-// void setObjectDataFlag(bool val) {
-//     objectDataFlag = true;
-// }
-
-// bool getObjectDataFlag(void) {
-//     return objectDataFlag;
-// }
+void unlockObjectData(void) {
+    sem_post(&objectDataSem);
+}
 
 
 objectData_t *getObjectData(void) {
@@ -137,52 +116,36 @@ void trigger(void) {
 /**
  * 
 */
-void *sensorRx_func(void *threadp) {
-    int level, ret  = 0;
-    double start_us = 0;
-    double read_us  = 0;
-    bool hi_flag    = false;
+void sensorRx(int pin, int level, uint32_t time_us) {
+    int ret  = 0;
+    static double start_us = 0;
+    double read_us = (double)time_us;
 
-    while(1) {
-        clock_gettime(CLOCK_REALTIME, &sensorRxStart);
-
-        level = gpioRead(ECHO_PIN);
-        if(level == PI_BAD_GPIO) {
-        /* gpio read failed, skip */
-            printf("\nsensorRx read failed!\n");
-            continue;
-        }
-
-    /* get start tick when high detected */
-        if((level == PI_ON) && (!hi_flag)) {
-            start_us = (double)gpioTick();
-            hi_flag = true;
-        }
-
-        if((level == PI_OFF) && hi_flag) {
-            read_us = (double)gpioTick();
-            hi_flag = false;
-            
-            lockSensorData();
-            sensorData.prevReadTime = sensorData.readTime;
-            sensorData.readTime = read_us / SEC_TO_US;
-            sensorData.echoTime = read_us - start_us;
-            sensorDataFlag      = true;
-            //printf("sensorData: Prev %.02f | Curr %.02f | Echo %.02f\n", sensorData.prevReadTime, sensorData.readTime, sensorData.echoTime);
-            unlockSensorData();
-            pthread_cond_signal(&sensorDataReady);
-        }
-
-        clock_gettime(CLOCK_REALTIME, &sensorRxFinish);
-        delta_t(&sensorRxFinish, &sensorRxStart, &sensorRxDelta);
-        if(timestamp(&sensorRxDelta) > timestamp(&sensorRxWCET)) {
-            sensorRxWCET.tv_sec    = sensorRxDelta.tv_sec;
-            sensorRxWCET.tv_nsec   = sensorRxDelta.tv_nsec;
-            printf("\nsensorRx WCET %lfms\n", timestamp(&sensorRxWCET));
-            //syslog(LOG_NOTICE, "\talarm WCET %lf msec\n", timestamp(&WCET));
-        }
+    clock_gettime(CLOCK_REALTIME, &sensorRxStart);
+/* get start tick when high detected */
+    if(level == PI_ON) {
+        start_us = read_us;
     }
-    pthread_exit(NULL);
+
+    if(level == PI_OFF) {
+        lockSensorData();
+        sensorData.prevReadTime = sensorData.readTime;
+        sensorData.readTime = read_us / SEC_TO_US;
+        sensorData.echoTime = read_us - start_us;
+        sensorDataFlag      = true;
+        //printf("sensorData: Prev %.02f | Curr %.02f | Echo %.02f\n", sensorData.prevReadTime, sensorData.readTime, sensorData.echoTime);
+        unlockSensorData();
+        pthread_cond_signal(&sensorDataReady);
+    }
+
+    clock_gettime(CLOCK_REALTIME, &sensorRxFinish);
+    delta_t(&sensorRxFinish, &sensorRxStart, &sensorRxDelta);
+    if(timestamp(&sensorRxDelta) > timestamp(&sensorRxWCET)) {
+        sensorRxWCET.tv_sec    = sensorRxDelta.tv_sec;
+        sensorRxWCET.tv_nsec   = sensorRxDelta.tv_nsec;
+        printf("\nsensorRx WCET %lfms\n", timestamp(&sensorRxWCET));
+        //syslog(LOG_NOTICE, "\talarm WCET %lf msec\n", timestamp(&WCET));
+    }
 }
 
 /**
@@ -207,11 +170,14 @@ void *sensorProcess_func(void *threadp) {
         objectData.range_cm     = ((sensorData.echoTime * SPEED_OF_SOUND * (M_TO_CM / SEC_TO_US)) / 2);
     /* calculate velocity based on time between detections and range difference */
         objectData.velocity     = (objectData.prevRange_cm - objectData.range_cm) / (sensorData.readTime - sensorData.prevReadTime);
+    /* calculate time to collision based on current range and object speed */
+        objectData.timeToCollision = objectData.range_cm / objectData.velocity;
     /* set data flags */
         sensorDataFlag = false;
-        printf("sensorData: Prev %.02f | Curr %.02f | Echo %.02f\n", sensorData.prevReadTime, sensorData.readTime, sensorData.echoTime);
-        printf("prevRange: %.02f | Range: %.02f |  velocity: %.02fcm/s\n", objectData.prevRange_cm, objectData.range_cm, objectData.velocity);
         unlockSensorData();
+        unlockObjectData();
+        //printf("sensorData: Prev %.02f | Curr %.02f | Echo %.02f\n", sensorData.prevReadTime, sensorData.readTime, sensorData.echoTime);
+        //printf("prevRange: %.02f | Range: %.02f |  velocity: %.02fcm/s\n", objectData.prevRange_cm, objectData.range_cm, objectData.velocity);
 
         clock_gettime(CLOCK_REALTIME, &sensorProcessFinish);
         delta_t(&sensorProcessFinish, &sensorProcessStart, &sensorProcessDelta);
@@ -242,6 +208,10 @@ int configHCSR04(void) {
     gpioWrite(TRIG_PIN, PI_OFF);
 /* setup timer to trigger the sonar sensor every 50ms */
     gpioSetTimerFunc(TRIGGER_TIMER, 50, trigger);
+/*  */    
+    gpioSetAlertFunc(ECHO_PIN, sensorRx);
+
+    sem_init(&objectDataSem, 0, 1);
 
     return 0;    
 }

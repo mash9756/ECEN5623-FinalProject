@@ -171,7 +171,7 @@ int main() {
     print_scheduler();
     set_main_sched();
     set_alarm_sched();
-    set_sensorRx_sched();
+    //set_sensorRx_sched();
     set_sensorProcess_sched();
     set_liveStream_sched();
     print_scheduler();
@@ -190,9 +190,9 @@ int main() {
 
 /* create threads for each service */
     //pthread_create(&liveStream_thread,      &liveStream_attr,       liveStream_func,     NULL);
-    //pthread_create(&alarm_thread,           &alarm_attr,            alarm_func,          NULL);
+    pthread_create(&alarm_thread,           &alarm_attr,            alarm_func,          NULL);
     pthread_create(&sensorProcess_thread,   &sensorProcess_attr,    sensorProcess_func,  NULL);
-    pthread_create(&sensorRx_thread,        &sensorRx_attr,         sensorRx_func,       NULL);
+    //pthread_create(&sensorRx_thread,        &sensorRx_attr,         sensorRx_func,       NULL);
 
     while(1){
         sleep(1);

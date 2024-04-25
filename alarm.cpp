@@ -50,6 +50,7 @@ void *alarm_func(void *threadp) {
     objectData_t *objData;
 
     while(1) {
+        lockObjectData();
         clock_gettime(CLOCK_REALTIME, &alarmStart);
         objData = getObjectData();
 
@@ -70,10 +71,11 @@ void *alarm_func(void *threadp) {
             delay = DELAY_50MS;
         }
         gpioSetTimerFunc(ALARM_TIMER, delay, toggleLED);
-
-        printf("Object Detected!\n");
-        printf("PrevRange: %.02fcm | Range: %.02fcm | ", objData->prevRange_cm, objData->range_cm);
-        printf("Velocity: %.02fcm/s\n", objData->velocity);
+        printf("\033c");
+        printf("*** Object Detected! ***\n");
+        printf("\tPrevRange: %.02fcm | Range: %.02fcm | Velocity: %.02fcm/s\n",
+                    objData->prevRange_cm, objData->range_cm, objData->velocity);
+        printf("\tTime to Collision: %.02fs\n", objData->timeToCollision);
         
         clock_gettime(CLOCK_REALTIME, &alarmFinish);
         delta_t(&alarmFinish, &alarmStart, &alarmDelta);
