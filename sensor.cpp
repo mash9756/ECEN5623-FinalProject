@@ -30,9 +30,11 @@ static const double M_TO_CM  = 100;
 /* seconds to microseconds */
 static const double SEC_TO_US  = 1000000;
 
-/* locking for sensor raw data and calculated range */
-sem_t sensorDataSem;
-sem_t objectDataSem;
+/* locking for sensor data and processed object data */
+pthread_cond_t sensorDataReady  = PTHREAD_COND_INITIALIZER;
+pthread_mutex_t sensorDataMutex = PTHREAD_MUTEX_INITIALIZER;
+//pthread_cond_t objectDataReady  = PTHREAD_COND_INITIALIZER;
+//pthread_mutex_t objectDataMutex = PTHREAD_MUTEX_INITIALIZER;
 
 /* sensorRx WCET timing */
 static struct timespec sensorRxWCET     = {0, 0};
@@ -46,21 +48,57 @@ struct timespec sensorProcessStart          = {0, 0};
 struct timespec sensorProcessFinish         = {0, 0};
 struct timespec sensorProcessDelta          = {0, 0};
 
-int lockObjectData(void) {
-    return sem_wait(&objectDataSem);
+static bool sensorDataFlag = false;
+//static bool objectDataFlag = false;
+
+void lockSensorData(void) {
+    int ret = pthread_mutex_lock(&sensorDataMutex);
+    if(ret) {
+        perror("sensorDataMutex");
+        pthread_exit(NULL);
+    }
 }
 
-int unlockObjectData(void) {
-    return sem_post(&objectDataSem);
+void unlockSensorData(void) {
+    pthread_mutex_unlock(&sensorDataMutex);
 }
 
-int lockSensorData(void) {
-    return sem_wait(&sensorDataSem);
+void waitSensorData(void) {
+    int ret = pthread_cond_wait(&sensorDataReady, &sensorDataMutex);
+    if(ret) {
+        perror("sensorDataReady");
+        pthread_exit(NULL);
+    }
 }
 
-int unlockSensorData(void) {
-    return sem_post(&sensorDataSem);
-}
+// void lockObjectData(void) {
+//     int ret = pthread_mutex_lock(&objectDataMutex);
+//     if(ret) {
+//         perror("objectDataMutex");
+//         pthread_exit(NULL);
+//     }
+// }
+
+// void unlockObjectData(void) {
+//     pthread_mutex_unlock(&objectDataMutex);
+// }
+
+// void waitObjectData(void) {
+//     int ret = pthread_cond_wait(&objectDataReady, &objectDataMutex);
+//     if(ret) {
+//         perror("objectDataReady");
+//         pthread_exit(NULL);
+//     }
+// }
+
+// void setObjectDataFlag(bool val) {
+//     objectDataFlag = true;
+// }
+
+// bool getObjectDataFlag(void) {
+//     return objectDataFlag;
+// }
+
 
 objectData_t *getObjectData(void) {
     return &objectData;
@@ -96,41 +134,11 @@ void trigger(void) {
     gpioWrite(TRIG_PIN, PI_OFF);
 }
 
-/* tick is microseconds since boot, wraps every ~72 mins */
-// void echo(int pin, int level, uint32_t time_us) {
-//     static double start_us = 0;
-//     static double first_us = 0;
-//     double diff_us = 0;
-//     double range_cm = 0;
-//
-//     clock_gettime(CLOCK_REALTIME, &sensorRxStart);
-//
-//     if(!first_us) {
-//         first_us = (double)time_us;
-//     }
-// /* get start tick when high detected */
-//     if(level == PI_ON) {
-//         start_us = (double)time_us;
-//     }
-// /* get pulse travel time from start tick and current tick when level drops */
-//     else if(level == PI_OFF) {
-//         lockSensorData();
-//         sensorData = (double)time_us - start_us;
-//         unlockSensorData();
-//     }
-//
-//     clock_gettime(CLOCK_REALTIME, &sensorRxFinish);
-//     delta_t(&sensorRxFinish, &sensorRxStart, &sensorRxDelta);
-//     if(timestamp(&sensorRxDelta) > timestamp(&sensorRxWCET)) {
-//         sensorRxWCET.tv_sec    = sensorRxDelta.tv_sec;
-//         sensorRxWCET.tv_nsec   = sensorRxDelta.tv_nsec;
-//         printf("\nsensorRx WCET %lfms\n", timestamp(&sensorRxWCET));
-//         //syslog(LOG_NOTICE, "\talarm WCET %lf msec\n", timestamp(&WCET));
-//     }
-// }
-
+/**
+ * 
+*/
 void *sensorRx_func(void *threadp) {
-    int level       = 0;
+    int level, ret  = 0;
     double start_us = 0;
     double read_us  = 0;
     bool hi_flag    = false;
@@ -141,6 +149,7 @@ void *sensorRx_func(void *threadp) {
         level = gpioRead(ECHO_PIN);
         if(level == PI_BAD_GPIO) {
         /* gpio read failed, skip */
+            printf("\nsensorRx read failed!\n");
             continue;
         }
 
@@ -151,15 +160,17 @@ void *sensorRx_func(void *threadp) {
         }
 
         if((level == PI_OFF) && hi_flag) {
+            read_us = (double)gpioTick();
             hi_flag = false;
             
             lockSensorData();
-            read_us = (double)gpioTick();
             sensorData.prevReadTime = sensorData.readTime;
-            sensorData.readTime = read_us;
+            sensorData.readTime = read_us / SEC_TO_US;
             sensorData.echoTime = read_us - start_us;
-            printf("sensorData: Prev %.02f | Curr %.02f | Echo %.02f", sensorData.prevReadTime, sensorData.readTime, sensorData.echoTime);
+            sensorDataFlag      = true;
+            //printf("sensorData: Prev %.02f | Curr %.02f | Echo %.02f\n", sensorData.prevReadTime, sensorData.readTime, sensorData.echoTime);
             unlockSensorData();
+            pthread_cond_signal(&sensorDataReady);
         }
 
         clock_gettime(CLOCK_REALTIME, &sensorRxFinish);
@@ -171,6 +182,7 @@ void *sensorRx_func(void *threadp) {
             //syslog(LOG_NOTICE, "\talarm WCET %lf msec\n", timestamp(&WCET));
         }
     }
+    pthread_exit(NULL);
 }
 
 /**
@@ -179,31 +191,38 @@ void *sensorRx_func(void *threadp) {
  *  divide by 2 as the sonar pulse is travelling to the object and back
 */
 void *sensorProcess_func(void *threadp) {
-    while(1) {
-        clock_gettime(CLOCK_REALTIME, &sensorProcessStart);
+    int ret = 0;
+    double time_us = 0;
 
-    /* lock sensor data and range while we process the data */
-        lockObjectData();
+    while(1) {
+    /* lock sensor data while we process the data, but we need to wait for valid sensor data to be available */
         lockSensorData();
+        while(!sensorDataFlag) {
+            waitSensorData();
+        }
+        clock_gettime(CLOCK_REALTIME, &sensorProcessStart);
     /* save previous distance for velocity calc */
         objectData.prevRange_cm = objectData.range_cm;
     /* calculate latest detected range */
         objectData.range_cm     = ((sensorData.echoTime * SPEED_OF_SOUND * (M_TO_CM / SEC_TO_US)) / 2);
     /* calculate velocity based on time between detections and range difference */
-        objectData.velocity     = (objectData.prevRange_cm - objectData.range_cm) / (sensorData.prevReadTime - sensorData.readTime);
-        //printf("\nrange: %.02f | sensorData: %d", range, sensorData);
+        objectData.velocity     = (objectData.prevRange_cm - objectData.range_cm) / (sensorData.readTime - sensorData.prevReadTime);
+    /* set data flags */
+        sensorDataFlag = false;
+        printf("sensorData: Prev %.02f | Curr %.02f | Echo %.02f\n", sensorData.prevReadTime, sensorData.readTime, sensorData.echoTime);
+        printf("prevRange: %.02f | Range: %.02f |  velocity: %.02fcm/s\n", objectData.prevRange_cm, objectData.range_cm, objectData.velocity);
         unlockSensorData();
-        unlockObjectData();
 
         clock_gettime(CLOCK_REALTIME, &sensorProcessFinish);
         delta_t(&sensorProcessFinish, &sensorProcessStart, &sensorProcessDelta);
         if(timestamp(&sensorProcessDelta) > timestamp(&sensorProcessWCET)) {
             sensorProcessWCET.tv_sec    = sensorProcessDelta.tv_sec;
             sensorProcessWCET.tv_nsec   = sensorProcessDelta.tv_nsec;
-            printf("\tsensorProcess WCET %lfms\n", timestamp(&sensorProcessWCET));
+            printf("\n\tsensorProcess WCET %lfms\n", timestamp(&sensorProcessWCET));
             //syslog(LOG_NOTICE, "\talarm WCET %lf msec\n", timestamp(&WCET));
         }
     }
+    pthread_exit(NULL);
 }
 
 int configHCSR04(void) {
@@ -219,15 +238,10 @@ int configHCSR04(void) {
     }
     printf("Done!\n");
 
-    sem_init(&objectDataSem, 0, 1);
-    sem_init(&sensorDataSem, 0, 1);
-
 /* turn off TRIG_PIN to start */
     gpioWrite(TRIG_PIN, PI_OFF);
 /* setup timer to trigger the sonar sensor every 50ms */
     gpioSetTimerFunc(TRIGGER_TIMER, 50, trigger);
-/* setup callback when level change detected on ECHO pin */
-    //gpioSetAlertFunc(ECHO_PIN, echo);
 
     return 0;    
 }

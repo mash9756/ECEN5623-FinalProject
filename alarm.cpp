@@ -51,15 +51,10 @@ void *alarm_func(void *threadp) {
 
     while(1) {
         clock_gettime(CLOCK_REALTIME, &alarmStart);
-
-    /* lock objectData for alarm determinations */
-        lockObjectData();
         objData = getObjectData();
-        unlockObjectData();
 
         if(objData->range_cm > MAX_RANGE) {
-        /* disable the timer if object detected is outside max range */
-            gpioSetTimerFunc(ALARM_TIMER, 0, NULL);
+        /* do nothing if no object detected in our given range */
             continue;
         }
         else if(objData->range_cm > MID_RANGE) {
@@ -74,11 +69,12 @@ void *alarm_func(void *threadp) {
         else{
             delay = DELAY_50MS;
         }
-        //printf("Object Detected!\n");
-        //printf("PrevRange: %.02fcm | Range: %.02fcm\n", objData->prevRange_cm, objData->range_cm);
-        //printf("Velocity: %.02fcm/s\n", objData->velocity);
         gpioSetTimerFunc(ALARM_TIMER, delay, toggleLED);
 
+        printf("Object Detected!\n");
+        printf("PrevRange: %.02fcm | Range: %.02fcm | ", objData->prevRange_cm, objData->range_cm);
+        printf("Velocity: %.02fcm/s\n", objData->velocity);
+        
         clock_gettime(CLOCK_REALTIME, &alarmFinish);
         delta_t(&alarmFinish, &alarmStart, &alarmDelta);
         if(timestamp(&alarmDelta) > timestamp(&alarmWCET)) {
@@ -88,7 +84,7 @@ void *alarm_func(void *threadp) {
             //syslog(LOG_NOTICE, "\talarm WCET %lf msec\n", timestamp(&WCET));
         }
     }
-    return NULL;
+    pthread_exit(NULL);
 }
 
 int configAlarm(void) {

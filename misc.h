@@ -12,8 +12,8 @@
 /* first pass at priorities, might need to change? */
 /* camera refresh rate requirement = 30Hz, Deadline 33ms, RM gives shortest highest prio */
 #define ALARM_PRIO          (2)
-#define SENSOR_RX_PRIO      (4)
-#define SENSOR_PROCESS_PRIO (3)
+#define SENSOR_RX_PRIO      (3)
+#define SENSOR_PROCESS_PRIO (2)
 #define LIVE_STREAM_PRIO    (1)
 
 #define ALARM_TIMER         (0)

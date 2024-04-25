@@ -21,14 +21,13 @@ struct timespec liveStreamStart         = {0, 0};
 struct timespec liveStreamFinish        = {0, 0};
 struct timespec liveStreamDelta         = {0, 0};
 
-
 void *liveStream_func(void *threadp) {
     VideoCapture cam0(0);
     char winInput = 0;
     namedWindow("video_display");
 
     if (!cam0.isOpened()){
-        return NULL;
+        pthread_exit(NULL);
     }
 
     cam0.set(CAP_PROP_FRAME_WIDTH,  640);
@@ -55,5 +54,5 @@ void *liveStream_func(void *threadp) {
         }
     }
     destroyWindow("video_display"); 
-    return NULL;
+    pthread_exit(NULL);
 }

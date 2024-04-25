@@ -190,7 +190,7 @@ int main() {
 
 /* create threads for each service */
     //pthread_create(&liveStream_thread,      &liveStream_attr,       liveStream_func,     NULL);
-    pthread_create(&alarm_thread,           &alarm_attr,            alarm_func,          NULL);
+    //pthread_create(&alarm_thread,           &alarm_attr,            alarm_func,          NULL);
     pthread_create(&sensorProcess_thread,   &sensorProcess_attr,    sensorProcess_func,  NULL);
     pthread_create(&sensorRx_thread,        &sensorRx_attr,         sensorRx_func,       NULL);
 
