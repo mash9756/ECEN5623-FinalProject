@@ -8,6 +8,7 @@
 
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
+#include <pigpio.h>
 
 #include "misc.h"
 
@@ -21,9 +22,21 @@ struct timespec liveStreamStart         = {0, 0};
 struct timespec liveStreamFinish        = {0, 0};
 struct timespec liveStreamDelta         = {0, 0};
 
+static bool stopLiveStreamFlag = false;
+
+void stopLiveStream(void) {
+    stopLiveStreamFlag = true;
+    printf("\n\tStopping liveStream service...");
+}
+
 void *liveStream_func(void *threadp) {
     VideoCapture cam0(0);
     char winInput = 0;
+    Mat frame1;
+    
+    //struct timespec sleepTime = {3, 0};
+    //struct timespec sleepLeft = {0, 0};
+
     namedWindow("video_display");
 
     if (!cam0.isOpened()){
@@ -32,15 +45,19 @@ void *liveStream_func(void *threadp) {
 
     cam0.set(CAP_PROP_FRAME_WIDTH,  640);
     cam0.set(CAP_PROP_FRAME_HEIGHT, 480);
+    
+    for (size_t i = 0; i < 100; i++) {
+        cam0.read(frame1);
+        imshow("video_display", frame1);
+    }
 
-    while (1) {
+    while (!stopLiveStreamFlag) {
         clock_gettime(CLOCK_REALTIME, &liveStreamStart);
+        Mat frameX;
+        cam0.read(frameX);
+        imshow("video_display", frameX);
 
-        Mat frame;
-        cam0.read(frame);
-        imshow("video_display", frame);
-
-        if ((winInput = waitKey(10)) == ESCAPE_KEY) {
+        if ((winInput = waitKey(5)) == ESCAPE_KEY) {
             break;
         }
         
@@ -54,5 +71,6 @@ void *liveStream_func(void *threadp) {
         }
     }
     destroyWindow("video_display"); 
+    printf("\n\t\tliveStream WCET %lfms", timestamp(&liveStreamWCET));
     pthread_exit(NULL);
 }

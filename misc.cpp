@@ -73,3 +73,22 @@ int delta_t(struct timespec *stop, struct timespec *start, struct timespec *delt
 
   return(1);
 }
+
+/* simple sleep function with ms parameter for ease of use */
+int sleep_ms(int ms) {
+    int ret = 0;
+    struct timespec req_time;
+    struct timespec rem_time;
+
+    int sec   = ms / MSEC_PER_SEC;
+    int nsec  = (ms % MSEC_PER_SEC) * NSEC_PER_MSEC;
+
+    req_time.tv_sec   = sec;
+    req_time.tv_nsec  = nsec;
+
+    if(ret = nanosleep(&req_time , &rem_time) < 0) {
+        printf("Nano sleep system call failed \n");
+        return -1;
+    }
+    return ret;
+}

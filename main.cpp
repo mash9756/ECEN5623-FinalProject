@@ -12,6 +12,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <syslog.h>
+#include <signal.h>
 
 #include <sys/types.h>
 #include <sys/sysinfo.h>
@@ -35,12 +36,6 @@ pthread_t liveStream_thread;
 pthread_attr_t liveStream_attr;
 struct sched_param liveStream_param;
 
-/* HC-SR04 Sensor Data Receive thread declarations and sched attributes */
-pthread_t sensorRx_thread;
-//threadParams_t sensorRx_thread_params;
-pthread_attr_t sensorRx_attr;
-struct sched_param sensorRx_param;
-
 /* HC-SR04 Sensor Data Process thread declarations and sched attributes */
 pthread_t sensorProcess_thread;
 //threadParams_t sensorProcess_thread_params;
@@ -61,6 +56,16 @@ struct sched_param main_param;
 int rt_max_prio = sched_get_priority_max(SCHED_FIFO);
 int rt_min_prio = sched_get_priority_min(SCHED_FIFO);
 
+static bool stopMainFlag = false;
+
+void intHandler(int dummy) {
+    printf("\nStopping...\n");
+    stopLiveStream();
+    stopAlarm();
+    stopSensor();
+    stopMainFlag = true;
+}
+
 void set_liveStream_sched(void) {
     cpu_set_t threadcpu;
 
@@ -75,22 +80,6 @@ void set_liveStream_sched(void) {
 
     liveStream_param.sched_priority = rt_max_prio - LIVE_STREAM_PRIO;
     pthread_attr_setschedparam(&liveStream_attr, &liveStream_param);
-}
-
-void set_sensorRx_sched(void) {
-    cpu_set_t threadcpu;
-
-    CPU_ZERO(&threadcpu);
-    CPU_SET(SENSOR_CORE_ID, &threadcpu);
-    printf("sensorRx thread set to run on core %d\n", SENSOR_CORE_ID);
-
-    pthread_attr_init(&sensorRx_attr);
-    pthread_attr_setinheritsched(&sensorRx_attr, PTHREAD_EXPLICIT_SCHED);
-    pthread_attr_setschedpolicy(&sensorRx_attr, SCHED_FIFO);
-    pthread_attr_setaffinity_np(&sensorRx_attr, sizeof(cpu_set_t), &threadcpu);
-
-    sensorRx_param.sched_priority = rt_max_prio - SENSOR_RX_PRIO;
-    pthread_attr_setschedparam(&sensorRx_attr, &sensorRx_param);
 }
 
 void set_sensorProcess_sched(void) {
@@ -113,8 +102,8 @@ void set_alarm_sched(void) {
     cpu_set_t threadcpu;
 
     CPU_ZERO(&threadcpu);
-    CPU_SET(ALARM_CORE_ID, &threadcpu);
-    printf("alarm thread set to run on core %d\n", ALARM_CORE_ID);
+    CPU_SET(SENSOR_CORE_ID, &threadcpu);
+    printf("alarm thread set to run on core %d\n", SENSOR_CORE_ID);
 
     pthread_attr_init(&alarm_attr);
     pthread_attr_setinheritsched(&alarm_attr, PTHREAD_EXPLICIT_SCHED);
@@ -167,11 +156,14 @@ int main() {
     printf("Done!\n");
 /* ------------------------------------------------------------------ */
 
+    struct sigaction act;
+    act.sa_handler = intHandler;
+    sigaction(SIGINT, &act, NULL);
+
 /* ---------------------- configure scheduling ---------------------- */
     print_scheduler();
     set_main_sched();
     set_alarm_sched();
-    //set_sensorRx_sched();
     set_sensorProcess_sched();
     set_liveStream_sched();
     print_scheduler();
@@ -189,14 +181,17 @@ int main() {
     }
 
 /* create threads for each service */
-    //pthread_create(&liveStream_thread,      &liveStream_attr,       liveStream_func,     NULL);
+    pthread_create(&liveStream_thread,      &liveStream_attr,       liveStream_func,     NULL);
     pthread_create(&alarm_thread,           &alarm_attr,            alarm_func,          NULL);
     pthread_create(&sensorProcess_thread,   &sensorProcess_attr,    sensorProcess_func,  NULL);
-    //pthread_create(&sensorRx_thread,        &sensorRx_attr,         sensorRx_func,       NULL);
 
-    while(1){
+    while(!stopMainFlag){
         sleep(1);
     }
-
     gpioTerminate();
+
+    pthread_join(liveStream_thread, NULL);
+    pthread_join(alarm_thread, NULL);
+    pthread_join(sensorProcess_thread, NULL);
+    return 0;
 }

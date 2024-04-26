@@ -8,5 +8,6 @@
 
 int configAlarm(void);
 void *alarm_func(void *threadp);
+void stopAlarm(void);
 
 #endif

@@ -40,6 +40,13 @@ struct timespec alarmStart          = {0, 0};
 struct timespec alarmFinish         = {0, 0};
 struct timespec alarmDelta          = {0, 0};
 
+static bool stopAlarmFlag = false;
+
+void stopAlarm(void) {
+    stopAlarmFlag = true;
+    printf("\n\tStopping alarm service...");
+}
+
 void toggleLED(void) {
     int level = gpioRead(LED_PIN);
     gpioWrite(LED_PIN, !level);
@@ -49,9 +56,9 @@ void *alarm_func(void *threadp) {
     uint32_t delay  = 0;
     objectData_t *objData;
 
-    while(1) {
-        lockObjectData();
+    while(!stopAlarmFlag) {
         clock_gettime(CLOCK_REALTIME, &alarmStart);
+        lockObjectData();
         objData = getObjectData();
 
         if(objData->range_cm > MAX_RANGE) {
@@ -86,6 +93,8 @@ void *alarm_func(void *threadp) {
             //syslog(LOG_NOTICE, "\talarm WCET %lf msec\n", timestamp(&WCET));
         }
     }
+    gpioSetTimerFunc(ALARM_TIMER, 0, NULL);
+    printf("\n\t\talarm WCET %lfms", timestamp(&alarmWCET));
     pthread_exit(NULL);
 }
 

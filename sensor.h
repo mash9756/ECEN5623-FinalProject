@@ -23,15 +23,14 @@ typedef struct objectData
 
 int configHCSR04(void);
 void *sensorProcess_func(void *threadp);
-void *sensorRx_func(void *threadp);
 int check_gpio_error(int ret, int pin);
 
 void lockObjectData(void);
 void unlockObjectData(void);
-void waitObjectData(void);
-void setObjectDataFlag(bool val);
 
 bool getObjectDataFlag(void);
 objectData_t *getObjectData(void);
+
+void stopSensor(void);
 
 #endif
