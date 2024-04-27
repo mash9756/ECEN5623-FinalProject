@@ -29,34 +29,38 @@ void stopLiveStream(void) {
     printf("\n\tStopping liveStream service...");
 }
 
-void *liveStream_func(void *threadp) {
+/** TODO: Test this!!! */
+int configLiveStream(void) {
     VideoCapture cam0(0);
-    char winInput = 0;
-    Mat frame1;
-    
-    //struct timespec sleepTime = {3, 0};
-    //struct timespec sleepLeft = {0, 0};
+    Mat startupFrame;
 
     namedWindow("video_display");
 
     if (!cam0.isOpened()){
-        pthread_exit(NULL);
+        return -1;
     }
 
-    cam0.set(CAP_PROP_FRAME_WIDTH,  640);
-    cam0.set(CAP_PROP_FRAME_HEIGHT, 480);
-    
-    for (size_t i = 0; i < 100; i++) {
-        cam0.read(frame1);
-        imshow("video_display", frame1);
-    }
+/* reduce resolution, hopefully helps load time */
+    cam0.set(CAP_PROP_FRAME_WIDTH,  320);
+    cam0.set(CAP_PROP_FRAME_HEIGHT, 240);
+
+    cam0.read(startupFrame);
+    imshow("video_display", startupFrame);
+
+    return 0;
+}
+
+void *liveStream_func(void *threadp) {
+    VideoCapture cam0(0);
+    char winInput = 0;
+    Mat frameX;
 
     while (!stopLiveStreamFlag) {
         clock_gettime(CLOCK_REALTIME, &liveStreamStart);
-        Mat frameX;
         cam0.read(frameX);
         imshow("video_display", frameX);
 
+    /* close streaming window on ESC */
         if ((winInput = waitKey(5)) == ESCAPE_KEY) {
             break;
         }

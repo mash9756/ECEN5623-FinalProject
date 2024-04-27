@@ -25,26 +25,18 @@
 #include "alarm.h"
 #include "misc.h"
 
-// typedef struct
-// {
-//   int threadIdx;
-// } threadParams_t;
-
 /* webcam stream thread declarations and sched attributes */
 pthread_t liveStream_thread;
-//threadParams_t liveStream_thread_params;
 pthread_attr_t liveStream_attr;
 struct sched_param liveStream_param;
 
 /* HC-SR04 Sensor Data Process thread declarations and sched attributes */
 pthread_t sensorProcess_thread;
-//threadParams_t sensorProcess_thread_params;
 pthread_attr_t sensorProcess_attr;
 struct sched_param sensorProcess_param;
 
 /* Object Detection Alarm thread declarations and sched attributes */
 pthread_t alarm_thread;
-//threadParams_t alarm_thread_params;
 pthread_attr_t alarm_attr;
 struct sched_param alarm_param;
 
@@ -146,7 +138,7 @@ void set_main_sched(void) {
 }
 
 int main() {
-/* ---------------------- init pigpio library ---------------------- */
+/* init pigpio library */
     printf("Initializing pigpio... ");
     int ret = gpioInitialise();
     if (ret == PI_INIT_FAILED) {
@@ -154,29 +146,35 @@ int main() {
         return -1;    
     }
     printf("Done!\n");
-/* ------------------------------------------------------------------ */
 
+/* configure CTRL-C Handle to stop program */
     struct sigaction act;
     act.sa_handler = intHandler;
     sigaction(SIGINT, &act, NULL);
 
-/* ---------------------- configure scheduling ---------------------- */
+/* configure scheduling */
     print_scheduler();
     set_main_sched();
     set_alarm_sched();
     set_sensorProcess_sched();
     set_liveStream_sched();
     print_scheduler();
-/* ------------------------------------------------------------------ */
 
 /* setup HC-SR04 Ultrasonic Sensor */
     if(configHCSR04()) {
         printf("HC-SR04 Config failed!\n");
         return -1;
     };
+
 /* setup alarm hardware */
     if(configAlarm()) {
         printf("Alarm Config failed!\n");
+        return -1;
+    }
+
+/* setup camera streaming */
+    if(configLiveStream()) {
+        printf("liveStream Config failed!\n");
         return -1;
     }
 
@@ -185,11 +183,15 @@ int main() {
     pthread_create(&alarm_thread,           &alarm_attr,            alarm_func,          NULL);
     pthread_create(&sensorProcess_thread,   &sensorProcess_attr,    sensorProcess_func,  NULL);
 
+/* allow threads to run */
     while(!stopMainFlag){
         sleep(1);
     }
+
+/* deinit gpio on program exit */
     gpioTerminate();
 
+/* wait for all threads to complete */
     pthread_join(liveStream_thread, NULL);
     pthread_join(alarm_thread, NULL);
     pthread_join(sensorProcess_thread, NULL);

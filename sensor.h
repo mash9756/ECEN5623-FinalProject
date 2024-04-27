@@ -21,15 +21,15 @@ typedef struct objectData
     double timeToCollision;
 }objectData_t;
 
+int check_gpio_error(int ret, int pin);
+
 int configHCSR04(void);
 void *sensorProcess_func(void *threadp);
-int check_gpio_error(int ret, int pin);
+
+objectData_t *getObjectData(void);
 
 void lockObjectData(void);
 void unlockObjectData(void);
-
-bool getObjectDataFlag(void);
-objectData_t *getObjectData(void);
 
 void stopSensor(void);
 
