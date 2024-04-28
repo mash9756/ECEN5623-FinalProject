@@ -14,7 +14,7 @@
 
 using namespace cv;
 
-static const int ESCAPE_KEY = 27;
+constexpr int ESCAPE_KEY = 27;
 
 /* WCET timing */
 static struct timespec liveStreamWCET   = {0, 0};
@@ -44,6 +44,7 @@ void *liveStream_func(void *threadp) {
     namedWindow("video_display", (WINDOW_NORMAL && WINDOW_KEEPRATIO));
     cam0.set(CAP_PROP_FRAME_WIDTH,  320);
     cam0.set(CAP_PROP_FRAME_HEIGHT, 240);
+    cam0.set(CAP_PROP_FPS, 30);
     
     while (!stopLiveStreamFlag) {
         clock_gettime(CLOCK_REALTIME, &liveStreamStart);

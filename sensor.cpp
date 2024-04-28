@@ -22,17 +22,23 @@ static sensorData_t sensorData = {};
 static objectData_t objectData = {};
 
 /* HC-SR04 TRIG is connected to GPIO23 (physical pin 16) */
-static const unsigned int TRIG_PIN  = 23;  
+constexpr unsigned int TRIG_PIN  = 23;  
 /* HC-SR04 TRIG is connected to GPIO24 (physical pin 18) */  
-static const unsigned int ECHO_PIN  = 24; 
+constexpr unsigned int ECHO_PIN  = 24; 
 /* Speed of sound at sea level, m/s*/
-static const double SPEED_OF_SOUND  = 343.00;
+constexpr double SPEED_OF_SOUND  = 343.00;
 /* meters to cm */
-static const double M_TO_CM  = 100;
+constexpr double M_TO_CM  = 100;
 /* seconds to microseconds */
-static const double SEC_TO_US  = 1000000;
+constexpr double SEC_TO_US  = 1000000;
 /* delay for 1 sensor read period before data processing begins */
-static const int SENSOR_STARTUP_DELAY = 50000;
+constexpr int SENSOR_STARTUP_DELAY = 50000;
+/* min/max allowable echo time, discard anything above as a misread */
+constexpr double MAX_ECHO_TIME_US   = (MAX_RANGE_CM * 2 * SEC_TO_US) / (M_TO_CM * SPEED_OF_SOUND);
+constexpr double MIN_ECHO_TIME_US   = (MIN_RANGE_CM * 2 * SEC_TO_US) / (M_TO_CM * SPEED_OF_SOUND);
+/* max allowable speed detection, see  references */
+constexpr double MAX_VELOCITY       =  150.00;
+constexpr double MIN_VELOCITY       = -150.00;
 
 /* locking for sensor data and processed object data */
 pthread_cond_t sensorDataReady  = PTHREAD_COND_INITIALIZER;
@@ -126,6 +132,7 @@ int check_gpio_error(int ret, int pin) {
 
 /* HC-SR04 sensor requires 10us pulse to trigger a measurement */
 void trigger(void) {
+    clock_gettime(CLOCK_REALTIME, &sensorRxStart);
     gpioWrite(TRIG_PIN, PI_ON);
     gpioDelay(10);
     gpioWrite(TRIG_PIN, PI_OFF);
@@ -138,6 +145,7 @@ void sensorRx(int pin, int level, uint32_t time_us) {
     static double start_us = 0;
     int ret  = 0;
     double read_us = 0;
+    double echo_us = 0;
 
     if(sensorStopFlag) {
     /* disable trigger timer, program ending */
@@ -151,20 +159,22 @@ void sensorRx(int pin, int level, uint32_t time_us) {
         read_us = (double)time_us;
     /* get start tick when high detected */
         if(level == PI_ON) {
-            clock_gettime(CLOCK_REALTIME, &sensorRxStart);
             start_us = read_us;
         }
 
         if(level == PI_OFF) {
+        /* discard any reads that are out of bounds */
+            echo_us = read_us - start_us;
+            if(echo_us > MAX_ECHO_TIME_US || echo_us < MIN_ECHO_TIME_US) {
+                return;
+            }
+        /* lock data for update */
             lockSensorData();
             sensorData.readCnt++;
             sensorData.prevReadTime = sensorData.readTime;
             sensorData.readTime = read_us / SEC_TO_US;
             sensorData.echoTime = read_us - start_us;
             sensorDataFlag      = true;
-            // printf("readCnt: %ld | sensorData: Prev %.02f | Curr %.02f | Echo %.02f\n", 
-            //         sensorData.readCnt, sensorData.prevReadTime, 
-            //         sensorData.readTime, sensorData.echoTime);
             unlockSensorData();
         /* signal processing thread that data is ready */
             pthread_cond_signal(&sensorDataReady);
@@ -175,10 +185,7 @@ void sensorRx(int pin, int level, uint32_t time_us) {
         if(timestamp(&sensorRxDelta) > timestamp(&sensorRxWCET)) {
             sensorRxWCET.tv_sec    = sensorRxDelta.tv_sec;
             sensorRxWCET.tv_nsec   = sensorRxDelta.tv_nsec;
-            printf("readCnt: %ld | sensorData: Prev %.02f | Curr %.02f | Echo %.02f\n", 
-                    sensorData.readCnt, sensorData.prevReadTime, 
-                    sensorData.readTime, sensorData.echoTime);
-            printf("sensorRx WCET %lfms\n\n", timestamp(&sensorRxWCET));
+            //printf("sensorRx WCET %lfms\n\n", timestamp(&sensorRxWCET));
             //syslog(LOG_NOTICE, "\talarm WCET %lf msec\n", timestamp(&WCET));
         }
     }
@@ -211,22 +218,25 @@ void *sensorProcess_func(void *threadp) {
     /* set data flags */
         sensorDataFlag = false;
         unlockSensorData();
+    /* ignore detected velocities higher than max possible speed */
+        // if( ((objectData.velocity * VELOCITY_SCALE) > MAX_VELOCITY) || 
+        //     ((objectData.velocity * VELOCITY_SCALE) < MIN_VELOCITY)) {
+        //     continue;
+        // }
     /* post objectData ready semaphore for Alarm thread */
         unlockObjectData();
-        //printf("sensorData: Prev %.02f | Curr %.02f | Echo %.02f\n", sensorData.prevReadTime, sensorData.readTime, sensorData.echoTime);
-        //printf("prevRange: %.02f | Range: %.02f |  velocity: %.02fcm/s\n", objectData.prevRange_cm, objectData.range_cm, objectData.velocity);
 
         clock_gettime(CLOCK_REALTIME, &sensorProcessFinish);
         delta_t(&sensorProcessFinish, &sensorProcessStart, &sensorProcessDelta);
         if(timestamp(&sensorProcessDelta) > timestamp(&sensorProcessWCET)) {
             sensorProcessWCET.tv_sec    = sensorProcessDelta.tv_sec;
             sensorProcessWCET.tv_nsec   = sensorProcessDelta.tv_nsec;
-            printf("readCnt: %ld | sensorData: Prev %.02f | Curr %.02f | Echo %.02f\n", 
-                    sensorData.readCnt, sensorData.prevReadTime, 
-                    sensorData.readTime, sensorData.echoTime);
-            printf("prevRange: %.02f | Range: %.02f |  velocity: %.02fcm/s\n", 
-                    objectData.prevRange_cm, objectData.range_cm, objectData.velocity);
-            printf("sensorProcess WCET %lfms\n\n", timestamp(&sensorProcessWCET));
+            // printf("readCnt: %ld | sensorData: Prev %.02f | Curr %.02f | Echo %.02f\n", 
+            //         sensorData.readCnt, sensorData.prevReadTime, 
+            //         sensorData.readTime, sensorData.echoTime);
+            // printf("prevRange: %.02f | Range: %.02f |  velocity: %.02fcm/s\n", 
+            //         objectData.prevRange_cm, objectData.range_cm, objectData.velocity);
+            // printf("sensorProcess WCET %lfms\n\n", timestamp(&sensorProcessWCET));
             //syslog(LOG_NOTICE, "\talarm WCET %lf msec\n", timestamp(&WCET));
         }
     }

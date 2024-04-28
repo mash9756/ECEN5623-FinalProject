@@ -53,9 +53,9 @@ static bool stopMainFlag = false;
 
 void intHandler(int dummy) {
     printf("\nStopping...\n");
+    stopLiveStream();
     stopAlarm();
     stopSensor();
-    stopLiveStream();
     stopMainFlag = true;
 }
 
@@ -187,9 +187,9 @@ int main() {
 
 /* wait for all threads to complete */
     printf("\nWaiting for threads...");
+    pthread_join(liveStream_thread, NULL);  
     pthread_join(alarm_thread, NULL);
     pthread_join(sensorProcess_thread, NULL);
-    pthread_join(liveStream_thread, NULL);
     printf("Done!\n");
     
 /* deinit gpio on program exit */
