@@ -10,8 +10,8 @@
 #include <pigpio.h>
 
 /* conversion values for timestamp calc */
-constexpr int NSEC_PER_SEC  (1000000000)
-constexpr int NSEC_PER_MSEC (1000000)
+constexpr int NSEC_PER_SEC  = 1000000000;
+constexpr int NSEC_PER_MSEC = 1000000;
 
 /**
  *  @name   check_gpio_error
