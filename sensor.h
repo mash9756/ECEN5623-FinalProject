@@ -6,14 +6,8 @@
 #ifndef SENSOR_H_
 #define SENSOR_H_
 
-constexpr double MAX_RANGE_CM = 400;
-constexpr double MIN_RANGE_CM = 1;
-/* m/s to km/hr */
-constexpr double VELOCITY_SCALE = 3.6; 
-
 typedef struct sensorData
 {
-    ssize_t readCnt;
     double echoTime;
     double prevReadTime;
     double readTime;
@@ -23,7 +17,8 @@ typedef struct objectData
 {
     double prevRange_cm;
     double range_cm;
-    double velocity;
+    double velocity_cmPerS;
+    double velocity_kmPerHr;
     double timeToCollision;
 }objectData_t;
 

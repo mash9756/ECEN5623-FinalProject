@@ -22,14 +22,21 @@ struct timespec liveStreamStart         = {0, 0};
 struct timespec liveStreamFinish        = {0, 0};
 struct timespec liveStreamDelta         = {0, 0};
 
+/* thread exit flag, set by SIGINT handler */
 static bool stopLiveStreamFlag = false;
 
+/**
+ * 
+*/
 void stopLiveStream(void) {
     stopLiveStreamFlag = true;
     printf("\tStopping liveStream service...\n");
     gpioDelay(1000000);
 }
 
+/**
+ * 
+*/
 void *liveStream_func(void *threadp) {
     VideoCapture cam0(0);
     char winInput = 0;
@@ -48,7 +55,6 @@ void *liveStream_func(void *threadp) {
     
     while (!stopLiveStreamFlag) {
         clock_gettime(CLOCK_REALTIME, &liveStreamStart);
-        printf("liveStream requested: %d\n", gpioTick());
         cam0.read(frameX);
         imshow("video_display", frameX);
 
@@ -56,14 +62,11 @@ void *liveStream_func(void *threadp) {
         if ((winInput = waitKey(5)) == ESCAPE_KEY) {
             break;
         }
-        printf("liveStream complete: %d\n", gpioTick());
         clock_gettime(CLOCK_REALTIME, &liveStreamFinish);
         delta_t(&liveStreamFinish, &liveStreamStart, &liveStreamDelta);
         if(timestamp(&liveStreamDelta) > timestamp(&liveStreamWCET)) {
             liveStreamWCET.tv_sec    = liveStreamDelta.tv_sec;
             liveStreamWCET.tv_nsec   = liveStreamDelta.tv_nsec;
-            //printf("\tliveStream WCET %lfms\n", timestamp(&liveStreamWCET));
-            //syslog(LOG_NOTICE, "\talarm WCET %lf msec\n", timestamp(&WCET));
         }
     }
     cam0.release();
