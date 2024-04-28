@@ -52,9 +52,9 @@ static bool stopMainFlag = false;
 
 void intHandler(int dummy) {
     printf("\nStopping...\n");
+    stopSensor();
     stopLiveStream();
     stopAlarm();
-    stopSensor();
     stopMainFlag = true;
 }
 
@@ -172,12 +172,6 @@ int main() {
         return -1;
     }
 
-/* setup camera streaming */
-    if(configLiveStream()) {
-        printf("liveStream Config failed!\n");
-        return -1;
-    }
-
 /* create threads for each service */
     pthread_create(&liveStream_thread,      &liveStream_attr,       liveStream_func,     NULL);
     pthread_create(&alarm_thread,           &alarm_attr,            alarm_func,          NULL);
@@ -192,8 +186,10 @@ int main() {
     gpioTerminate();
 
 /* wait for all threads to complete */
+    printf("\nWaiting for threads...\n");
+    pthread_join(sensorProcess_thread, NULL);
     pthread_join(liveStream_thread, NULL);
     pthread_join(alarm_thread, NULL);
-    pthread_join(sensorProcess_thread, NULL);
+    
     return 0;
 }

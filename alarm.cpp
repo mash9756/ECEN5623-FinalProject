@@ -21,6 +21,11 @@ static const unsigned int DELAY_250MS   = 250;
 static const unsigned int DELAY_100MS   = 100;
 static const unsigned int DELAY_50MS    = 50;
 
+/* scale detected range by 10 for proof of concept  */
+constexpr double RANGE_SCALE    = 10;
+/* m/s to km/hr */
+constexpr double VELOCITY_SCALE = 3.6; 
+
 /**
  *  > 300 we do nothing
  *  200 - 300   led blinks
@@ -45,6 +50,7 @@ static bool stopAlarmFlag = false;
 void stopAlarm(void) {
     stopAlarmFlag = true;
     printf("\n\tStopping alarm service...");
+    gpioDelay(1000000);
 }
 
 void toggleLED(void) {
@@ -80,8 +86,9 @@ void *alarm_func(void *threadp) {
         gpioSetTimerFunc(ALARM_TIMER, delay, toggleLED);
         printf("\033c");
         printf("*** Object Detected! ***\n");
-        printf("\tPrevRange: %.02fcm | Range: %.02fcm | Velocity: %.02fcm/s\n",
-                    objData->prevRange_cm, objData->range_cm, objData->velocity);
+        printf("\tPrevRange: %.02fm | Range: %.02fm | Velocity: %.02fkm/hr\n",
+                    (objData->prevRange_cm), (objData->range_cm), 
+                    (objData->velocity * VELOCITY_SCALE));
         printf("\tTime to Collision: %.02fs\n", objData->timeToCollision);
         
         clock_gettime(CLOCK_REALTIME, &alarmFinish);
@@ -89,12 +96,13 @@ void *alarm_func(void *threadp) {
         if(timestamp(&alarmDelta) > timestamp(&alarmWCET)) {
             alarmWCET.tv_sec    = alarmDelta.tv_sec;
             alarmWCET.tv_nsec   = alarmDelta.tv_nsec;
-            printf("\talarm WCET %lfms\n", timestamp(&alarmWCET));
+            //printf("\talarm WCET %lfms\n", timestamp(&alarmWCET));
             //syslog(LOG_NOTICE, "\talarm WCET %lf msec\n", timestamp(&WCET));
         }
     }
     gpioSetTimerFunc(ALARM_TIMER, 0, NULL);
-    printf("\n\t\talarm WCET %lfms", timestamp(&alarmWCET));
+    //destroyObjectDataSem();
+    printf("\n\t\tFinal alarm WCET %lfms", timestamp(&alarmWCET));
     pthread_exit(NULL);
 }
 

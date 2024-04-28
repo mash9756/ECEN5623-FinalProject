@@ -30,6 +30,7 @@ objectData_t *getObjectData(void);
 
 void lockObjectData(void);
 void unlockObjectData(void);
+void destroyObjectDataSem(void);
 
 void stopSensor(void);
 

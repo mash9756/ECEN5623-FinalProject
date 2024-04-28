@@ -27,27 +27,7 @@ static bool stopLiveStreamFlag = false;
 void stopLiveStream(void) {
     stopLiveStreamFlag = true;
     printf("\n\tStopping liveStream service...");
-}
-
-/** TODO: Test this!!! */
-int configLiveStream(void) {
-    VideoCapture cam0(0);
-    Mat startupFrame;
-
-    namedWindow("video_display");
-
-    if (!cam0.isOpened()){
-        return -1;
-    }
-
-/* reduce resolution, hopefully helps load time */
-    cam0.set(CAP_PROP_FRAME_WIDTH,  320);
-    cam0.set(CAP_PROP_FRAME_HEIGHT, 240);
-
-    cam0.read(startupFrame);
-    imshow("video_display", startupFrame);
-
-    return 0;
+    gpioDelay(1000000);
 }
 
 void *liveStream_func(void *threadp) {
@@ -55,6 +35,16 @@ void *liveStream_func(void *threadp) {
     char winInput = 0;
     Mat frameX;
 
+    if (!cam0.isOpened()) {
+        printf("Can't open cam0!\n");
+        pthread_exit(NULL);
+    }
+
+/* setup display window and camera resolution */
+    namedWindow("video_display", (WINDOW_NORMAL && WINDOW_KEEPRATIO));
+    cam0.set(CAP_PROP_FRAME_WIDTH,  320);
+    cam0.set(CAP_PROP_FRAME_HEIGHT, 240);
+    
     while (!stopLiveStreamFlag) {
         clock_gettime(CLOCK_REALTIME, &liveStreamStart);
         cam0.read(frameX);
@@ -70,11 +60,12 @@ void *liveStream_func(void *threadp) {
         if(timestamp(&liveStreamDelta) > timestamp(&liveStreamWCET)) {
             liveStreamWCET.tv_sec    = liveStreamDelta.tv_sec;
             liveStreamWCET.tv_nsec   = liveStreamDelta.tv_nsec;
-            printf("\tliveStream WCET %lfms\n", timestamp(&liveStreamWCET));
+            //printf("\tliveStream WCET %lfms\n", timestamp(&liveStreamWCET));
             //syslog(LOG_NOTICE, "\talarm WCET %lf msec\n", timestamp(&WCET));
         }
     }
+    cam0.release();
     destroyWindow("video_display"); 
-    printf("\n\t\tliveStream WCET %lfms", timestamp(&liveStreamWCET));
+    printf("\n\t\tFinal liveStream WCET %lfms", timestamp(&liveStreamWCET));
     pthread_exit(NULL);
 }
