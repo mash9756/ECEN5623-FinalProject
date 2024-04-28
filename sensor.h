@@ -22,9 +22,7 @@ typedef struct objectData
     double timeToCollision;
 }objectData_t;
 
-int check_gpio_error(int ret, int pin);
-
-int configHCSR04(void);
+int configSensor(void);
 void *sensorProcess_func(void *threadp);
 
 objectData_t *getObjectData(void);

@@ -39,17 +39,25 @@ struct timespec alarmDelta          = {0, 0};
 static bool stopAlarmFlag = false;
 
 /**
+ *  @name   stopAlarm
+ *  @brief  signals program exit was triggered, break alarm service loop and delay for final execution
  * 
+ *  @param  NONE
+ *  @return VOID
 */
 void stopAlarm(void) {
     stopAlarmFlag = true;
     unlockObjectData();
     printf("\tStopping alarm service...\n");
-    gpioDelay(1000000);
+    gpioDelay(EXIT_DELAY);
 }
 
 /**
+ *  @name   toggleLED
+ *  @brief  toggle the alarm LED output state
  * 
+ *  @param  NONE
+ *  @return VOID
 */
 void toggleLED(void) {
     int level = gpioRead(LED_PIN);
@@ -57,17 +65,29 @@ void toggleLED(void) {
 }
 
 /**
+ *  @name   alarm_func
+ *  @brief  alarm service function
+ *          signalled by sensorProcessing thread when processed detection data is ready
+ *          displays alarm to user based on processed data
  * 
+ *  @param  threadp     thread parameters, unused
+ *  @return VOID
 */
 void *alarm_func(void *threadp) {
     uint32_t delay  = 0;
     objectData_t *objData;
 
     while(!stopAlarmFlag) {
+    /* wait for processed data to be ready */
         lockObjectData();
+
+    /* data processed, start of alarm service */
         clock_gettime(CLOCK_REALTIME, &alarmStart);
+
+    /* get a pointer to the current detection data */
         objData = getObjectData();
 
+    /* determine LED blink frequency based on calculated TTC */
         if((objData->timeToCollision > MAX_TTC) || (objData->timeToCollision < 0)) {
         /* disable LED alarm if outside max detection */
             gpioSetTimerFunc(ALARM_TIMER, 0, NULL);
@@ -90,6 +110,8 @@ void *alarm_func(void *threadp) {
             delay = DELAY_50MS;
         }
         gpioSetTimerFunc(ALARM_TIMER, delay, toggleLED);
+    
+    /* clear screen and display detection data to the user */
         printf("\033c");
         printf("*** Object Detected! ***\n");
         printf("\tPrevRange: %.02fm | Range: %.02fm | Velocity: %.02fkm/hr\n",
@@ -97,6 +119,7 @@ void *alarm_func(void *threadp) {
                     (objData->velocity_kmPerHr));
         printf("\tTime to Collision: %.02fs\n", objData->timeToCollision);
         
+    /* calculate execution time, store WCET if it occurred */
         clock_gettime(CLOCK_REALTIME, &alarmFinish);
         delta_t(&alarmFinish, &alarmStart, &alarmDelta);
         if(timestamp(&alarmDelta) > timestamp(&alarmWCET)) {
@@ -112,7 +135,12 @@ void *alarm_func(void *threadp) {
 }
 
 /**
+ *  @name   configAlarm
+ *  @brief  configure alarm hardware
+ *          sets up alarm LED gpio pins
  * 
+ *  @param  NONE
+ *  @return init status, -1 on error
 */
 int configAlarm(void) {
     printf("Configuring LED Pin %d to Output Mode...", LED_PIN);

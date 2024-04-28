@@ -10,8 +10,7 @@
 #include <time.h>
 #include <stdlib.h>
 
-/** TODO: might need to change? */
-/* camera refresh rate requirement = 30Hz, Deadline 33ms, RM gives shortest highest prio */
+/* service priorities */
 #define ALARM_PRIO          (2)
 #define SENSOR_PROCESS_PRIO (2)
 #define LIVE_STREAM_PRIO    (1)
@@ -24,9 +23,12 @@
 #define LIVESTREAM_CORE_ID  (0)
 #define SENSOR_CORE_ID      (1)
 
-/* misc functions for scheduler confirm and WCET calculation */
+/* exit delay */
+#define EXIT_DELAY          (1000000)
+
+int check_gpio_error(int ret, int pin);
 void print_scheduler(void);
 double timestamp(struct timespec *duration);
-int delta_t(struct timespec *stop, struct timespec *start, struct timespec *delta_t);
+void delta_t(struct timespec *stop, struct timespec *start, struct timespec *delta_t);
 
 #endif

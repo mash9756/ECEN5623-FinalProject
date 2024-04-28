@@ -26,18 +26,29 @@ struct timespec liveStreamDelta         = {0, 0};
 static bool stopLiveStreamFlag = false;
 
 /**
+ *  @name   stopLiveStream
+ *  @brief  signals program exit was triggered, break liveStream service loop and delay for final execution
  * 
+ *  @param  NONE
+ *  @return VOID
 */
 void stopLiveStream(void) {
     stopLiveStreamFlag = true;
     printf("\tStopping liveStream service...\n");
-    gpioDelay(1000000);
+    gpioDelay(EXIT_DELAY);
 }
 
 /**
+ *  @name   liveStream_func
+ *  @brief  live video stream service function
+ *          running at max speed on its own core, offers ~25 FPS
+ *          displays the object detection field to the user
  * 
+ *  @param  threadp     thread parameters, unused
+ *  @return VOID
 */
 void *liveStream_func(void *threadp) {
+/* open the camera for streaming */
     VideoCapture cam0(0);
     char winInput = 0;
     Mat frameX;
@@ -54,6 +65,7 @@ void *liveStream_func(void *threadp) {
     cam0.set(CAP_PROP_FPS, 30);
     
     while (!stopLiveStreamFlag) {
+    /* start of liveStream service, read and display a frame */
         clock_gettime(CLOCK_REALTIME, &liveStreamStart);
         cam0.read(frameX);
         imshow("video_display", frameX);
@@ -62,6 +74,8 @@ void *liveStream_func(void *threadp) {
         if ((winInput = waitKey(5)) == ESCAPE_KEY) {
             break;
         }
+
+    /* calculate execution time, store WCET if it occurred */
         clock_gettime(CLOCK_REALTIME, &liveStreamFinish);
         delta_t(&liveStreamFinish, &liveStreamStart, &liveStreamDelta);
         if(timestamp(&liveStreamDelta) > timestamp(&liveStreamWCET)) {
@@ -69,6 +83,7 @@ void *liveStream_func(void *threadp) {
             liveStreamWCET.tv_nsec   = liveStreamDelta.tv_nsec;
         }
     }
+/* thread exit cleanup */
     cam0.release();
     destroyWindow("video_display"); 
     printf("\t\tFinal liveStream WCET %lfms\n", timestamp(&liveStreamWCET));

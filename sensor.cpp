@@ -1,6 +1,8 @@
 /**
  * 
- * https://github.com/buildrobotsbetter/rpi4b_gpio-example/blob/main/pigpio/src/flash-led/flash-led.cpp
+ *  references
+ *  [1] https://stackoverflow.com/questions/16522858/understanding-of-pthread-cond-wait-and-pthread-cond-signal
+ *  [2] https://github.com/buildrobotsbetter/rpi4b_gpio-example/blob/main/pigpio/src/flash-led/flash-led.cpp
  * 
 */
 
@@ -23,15 +25,16 @@ constexpr unsigned int TRIG_PIN  = 23;
 /* HC-SR04 TRIG is connected to GPIO24 (physical pin 18) */  
 constexpr unsigned int ECHO_PIN  = 24; 
 
-/* Speed of sound at sea level, m/s*/
-constexpr double SPEED_OF_SOUND  = 343.00;
-/* meters to cm */
-constexpr double M_TO_CM  = 100;
-/* seconds to microseconds */
-constexpr double SEC_TO_US  = 1000000;
-/* cm/s to km/hr conversion */
-constexpr double CMPERS_TO_KMPERHR = 27.778;
-/* delay for 1 sensor read period before data processing begins */
+/* Speed of sound at sea level, m/s for range calc */
+constexpr double SPEED_OF_SOUND = 343.00;
+/* meters to cm conversion for velocity calc */
+constexpr double M_TO_CM        = 100;
+/* seconds to microseconds conversion for velocity calc */
+constexpr double SEC_TO_US      = 1000000;
+/* cm/s to km/hr conversion for TTC calc */
+constexpr double CMPS_TO_KMPHR  = 27.778;
+
+/* sensor read period */
 constexpr int TRIGGER_PERIOD = 50;
 
 /* min/max detectable range for HC-SR04 */
@@ -77,16 +80,24 @@ static bool sensorDataFlag = false;
 static bool sensorStopFlag = false;
 
 /**
+ *  @name   stopSensor
+ *  @brief  signals program exit was triggered, break sensor service loop and delay for final execution
  * 
+ *  @param  NONE
+ *  @return VOID
 */
 void stopSensor(void) {
     sensorStopFlag = true;
     printf("\n\tStopping sensor services...\n");
-    gpioDelay(1000000);
+    gpioDelay(EXIT_DELAY);
 }
 
 /**
+ *  @name   lockSensorData
+ *  @brief  wrapper for sensor data mutex lock
  * 
+ *  @param  VOID
+ *  @return VOID, exit current running thread on failure
 */
 void lockSensorData(void) {
     int ret = pthread_mutex_lock(&sensorDataMutex);
@@ -97,14 +108,22 @@ void lockSensorData(void) {
 }
 
 /**
+ *  @name   unlockSensorData
+ *  @brief  wrapper for sensor data mutex unlock
  * 
+ *  @param  VOID
+ *  @return VOID
 */
 void unlockSensorData(void) {
     pthread_mutex_unlock(&sensorDataMutex);
 }
 
 /**
+ *  @name   waitSensorData
+ *  @brief  wrapper for sensor data signal conditional wait
  * 
+ *  @param  VOID
+ *  @return VOID, exit current running thread on failure
 */
 void waitSensorData(void) {
     int ret = pthread_cond_wait(&sensorDataReady, &sensorDataMutex);
@@ -115,7 +134,11 @@ void waitSensorData(void) {
 }
 
 /**
+ *  @name   lockObjectData
+ *  @brief  wrapper for processed data ready semaphore wait
  * 
+ *  @param  VOID
+ *  @return VOID, exit current running thread on failure
 */
 void lockObjectData(void) {
     int ret = sem_wait(&objectDataSem);
@@ -126,57 +149,48 @@ void lockObjectData(void) {
 }
 
 /**
+ *  @name   unlockObjectData
+ *  @brief  wrapper for processed data ready semaphore post
  * 
+ *  @param  VOID
+ *  @return VOID, exit current running thread on failure
 */
 void unlockObjectData(void) {
     sem_post(&objectDataSem);
 }
 
 /**
+ *  @name   destroyObjectData
+ *  @brief  wrapper for deinit of the processed data ready semaphore
  * 
+ *  @param  VOID
+ *  @return VOID
 */
 void destroyObjectDataSem(void) {
     sem_destroy(&objectDataSem);
 }
 
 /**
+ *  @name   getObjectData
+ *  @brief  getter for static global instance of the current processed sensor data
  * 
+ *  @param  VOID
+ *  @return pointer to processed data instance
 */
 objectData_t *getObjectData(void) {
     return &objectData;
 }
 
 /**
- *
- * error check for individual gpio init
-*/
-int check_gpio_error(int ret, int pin) {
-    if (ret != 0) {
-        switch (ret) {
-            case PI_BAD_GPIO:
-                printf("GPIO %d is bad.\n", pin);
-                return -1;
-                break;
-            case PI_BAD_MODE:
-                printf("GPIO %d bad mode.\n", pin);
-                return -1; 
-                break;
-            default:
-                printf("GPIO %d unexpected result, error %d.\n", pin, ret);
-                return -1;
-                break;
-        }
-    }
-    else {
-        return 0;
-    }
-}
-
-/**
+ *  @name   triggerSensor
+ *  @brief  initiate a sensor read by toggling the TRIG pin
+ *          also take a timestamp for WCET calc
+ *          HC-SR04 sensor requires 10us pulse on the TRIG pin to trigger a read
  * 
- * HC-SR04 sensor requires 10us pulse to trigger a measurement
+ *  @param  NONE
+ *  @return VOID
 */
-void trigger(void) {
+void triggerSensor(void) {
 /* sensor triggered, start of data receive service */
     clock_gettime(CLOCK_REALTIME, &sensorRxStart);
     gpioWrite(TRIG_PIN, PI_ON);
@@ -185,7 +199,15 @@ void trigger(void) {
 }
 
 /**
+ *  @name   sensorRx
+ *  @brief  sensor data receive service function
+ *          registered as a callback to the level detection function for the ECHO pin
+ *          
+ *  @param  pin     pin registered for level detection
+ *  @param  level   measured level, PI_HI or PI_LOW
+ *  @param  time_us system tick when level detection occurred
  * 
+ *  @return VOID
 */
 void sensorRx(int pin, int level, uint32_t time_us) {
     static double start_us = 0;
@@ -246,13 +268,21 @@ void sensorRx(int pin, int level, uint32_t time_us) {
 }
 
 /**
- *  distance = rate * time, rate = speed of sound, time is in microseconds
- *  convert m/s to cm/us to get distance in cm
- *  divide by 2 as the sonar pulse is travelling to the object and back
+
 */
 /**
+ *  @name   sensorProcess_func
+ *  @brief  sensor data processing service function
+ *          waits for 5 sensor reads to be completed, then averages the raw data
+ *          then calculates object detection range, velocity, and TTC
+ *          once complete, signals alarm service to run via the objectDataSem
  * 
+ *          distance = rate * time, rate = speed of sound, time is in microseconds
+ *          convert m/s to cm/us to get distance in cm
+ *          divide by 2 as the sonar pulse is travelling to the object and back
  * 
+ *  @param  threadp     thread parameters, unused
+ *  @return VOID
 */
 void *sensorProcess_func(void *threadp) {
     int ret = 0;
@@ -291,13 +321,14 @@ void *sensorProcess_func(void *threadp) {
     /* calculate time to collision based on current range and object speed */
         objectData.timeToCollision  = objectData.range_cm / objectData.velocity_cmPerS;
     /* convert cm/s to km/hr */
-        objectData.velocity_kmPerHr = objectData.velocity_cmPerS / CMPERS_TO_KMPERHR;
+        objectData.velocity_kmPerHr = objectData.velocity_cmPerS / CMPS_TO_KMPHR;
     /* set sensor data flags indicating processing is done */
         sensorDataFlag = false;
         unlockSensorData();
     /* post objectData ready semaphore for Alarm thread */
         unlockObjectData();
 
+    /* calculate execution time, store WCET if it occurred */
         clock_gettime(CLOCK_REALTIME, &sensorProcessFinish);
         delta_t(&sensorProcessFinish, &sensorProcessStart, &sensorProcessDelta);
         if(timestamp(&sensorProcessDelta) > timestamp(&sensorProcessWCET)) {
@@ -313,10 +344,16 @@ void *sensorProcess_func(void *threadp) {
 }
 
 /**
+ *  @name   configSensor
+ *  @brief  configure hardware for HC-SR04 sensor
+ *          setup trigger timer to pulse the TRIG pin periodically to initiate a data read
+ *          setup the ECHO level detection callback, i.e. the sensorRx service
+ *          delay system start for the initial sensor reads
  * 
- * 
+ *  @param  NONE
+ *  @return completion status, -1 indicates gpio init error
 */
-int configHCSR04(void) {
+int configSensor(void) {
     printf("Configuring TRIG Pin %d to Output Mode...", TRIG_PIN);
     if(check_gpio_error(gpioSetMode(TRIG_PIN,  PI_OUTPUT), TRIG_PIN)) {
         return -1;
@@ -333,7 +370,7 @@ int configHCSR04(void) {
     gpioWrite(TRIG_PIN, PI_OFF);
 
 /* setup timer to trigger the sonar sensor every 50ms */
-    gpioSetTimerFunc(TRIGGER_TIMER, TRIGGER_PERIOD, trigger);
+    gpioSetTimerFunc(TRIGGER_TIMER, TRIGGER_PERIOD, triggerSensor);
 
 /* edge-detection callback for capturing sensor data */    
     gpioSetAlertFunc(ECHO_PIN, sensorRx);

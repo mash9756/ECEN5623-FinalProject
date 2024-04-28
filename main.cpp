@@ -49,8 +49,16 @@ struct sched_param main_param;
 int rt_max_prio = sched_get_priority_max(SCHED_FIFO);
 int rt_min_prio = sched_get_priority_min(SCHED_FIFO);
 
+/* thread exit flag, set by SIGINT handler */
 static bool stopMainFlag = false;
 
+/**
+ *  @name   intHandler
+ *  @brief  interrupt handler used to catch SIGINT and gracefully shutdown the program
+ * 
+ *  @param  NONE
+ *  @return VOID
+*/
 void intHandler(int dummy) {
     printf("\nStopping...\n");
     stopLiveStream();
@@ -59,6 +67,13 @@ void intHandler(int dummy) {
     stopMainFlag = true;
 }
 
+/**
+ *  @name   set_liveStream_sched
+ *  @brief  configure thread parameters for the camera live stream
+ * 
+ *  @param  NONE
+ *  @return VOID
+*/
 void set_liveStream_sched(void) {
     cpu_set_t threadcpu;
 
@@ -75,6 +90,13 @@ void set_liveStream_sched(void) {
     pthread_attr_setschedparam(&liveStream_attr, &liveStream_param);
 }
 
+/**
+ *  @name   set_sensorProcess_sched
+ *  @brief  configure thread parameters for sensor data processing
+ * 
+ *  @param  NONE
+ *  @return VOID
+*/
 void set_sensorProcess_sched(void) {
     cpu_set_t threadcpu;
 
@@ -91,6 +113,13 @@ void set_sensorProcess_sched(void) {
     pthread_attr_setschedparam(&sensorProcess_attr, &sensorProcess_param);
 }
 
+/**
+ *  @name   set_alarm_sched
+ *  @brief  configure thread parameters for the object detection alarm
+ * 
+ *  @param  NONE
+ *  @return VOID
+*/
 void set_alarm_sched(void) {
     cpu_set_t threadcpu;
 
@@ -107,7 +136,14 @@ void set_alarm_sched(void) {
     pthread_attr_setschedparam(&alarm_attr, &alarm_param);
 }
 
-/* configure main thread scheduling policy and parameters */
+/**
+ *  @name   set_main_sched
+ *  @brief  configure thread parameters for the main thread
+ *          sets up use of SCHED_FIFO for created threads
+ * 
+ *  @param  NONE
+ *  @return VOID
+*/
 void set_main_sched(void) {
     int rc          = 0;
     int scope       = 0;
@@ -138,9 +174,15 @@ void set_main_sched(void) {
     pthread_attr_setschedparam(&main_attr, &main_param);
 }
 
+/**
+ *  @name   main
+ *  @brief  main program execution
+ *          initalizes hardware and threads, then waits for completion
+ * 
+ *  @param  NONE
+ *  @return execution status, -1 on any error
+*/
 int main() {
-
-    gpioCfgSetInternals(1>>10);
 /* init pigpio library */
     printf("Initializing pigpio... ");
     int ret = gpioInitialise();
@@ -164,7 +206,7 @@ int main() {
     print_scheduler();
 
 /* setup HC-SR04 Ultrasonic Sensor */
-    if(configHCSR04()) {
+    if(configSensor()) {
         printf("HC-SR04 Config failed!\n");
         return -1;
     };
