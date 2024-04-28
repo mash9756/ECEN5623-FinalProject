@@ -8,6 +8,7 @@
 
 typedef struct sensorData
 {
+    ssize_t readCnt;
     double echoTime;
     double prevReadTime;
     double readTime;

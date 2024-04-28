@@ -26,7 +26,7 @@ static bool stopLiveStreamFlag = false;
 
 void stopLiveStream(void) {
     stopLiveStreamFlag = true;
-    printf("\n\tStopping liveStream service...");
+    printf("\tStopping liveStream service...\n");
     gpioDelay(1000000);
 }
 
@@ -66,6 +66,6 @@ void *liveStream_func(void *threadp) {
     }
     cam0.release();
     destroyWindow("video_display"); 
-    printf("\n\t\tFinal liveStream WCET %lfms", timestamp(&liveStreamWCET));
+    printf("\t\tFinal liveStream WCET %lfms\n", timestamp(&liveStreamWCET));
     pthread_exit(NULL);
 }

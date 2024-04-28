@@ -5,6 +5,8 @@
 
 #include <pigpio.h>
 #include <stdio.h>
+#include <errno.h>
+#include <signal.h>
 
 #include "alarm.h"
 #include "sensor.h"
@@ -49,7 +51,8 @@ static bool stopAlarmFlag = false;
 
 void stopAlarm(void) {
     stopAlarmFlag = true;
-    printf("\n\tStopping alarm service...");
+    unlockObjectData();
+    printf("\tStopping alarm service...\n");
     gpioDelay(1000000);
 }
 
@@ -63,8 +66,8 @@ void *alarm_func(void *threadp) {
     objectData_t *objData;
 
     while(!stopAlarmFlag) {
-        clock_gettime(CLOCK_REALTIME, &alarmStart);
         lockObjectData();
+        clock_gettime(CLOCK_REALTIME, &alarmStart);
         objData = getObjectData();
 
         if(objData->range_cm > MAX_RANGE) {
@@ -101,8 +104,8 @@ void *alarm_func(void *threadp) {
         }
     }
     gpioSetTimerFunc(ALARM_TIMER, 0, NULL);
-    //destroyObjectDataSem();
-    printf("\n\t\tFinal alarm WCET %lfms", timestamp(&alarmWCET));
+    destroyObjectDataSem();
+    printf("\t\tFinal alarm WCET %lfms\n", timestamp(&alarmWCET));
     pthread_exit(NULL);
 }
 

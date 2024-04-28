@@ -13,6 +13,7 @@
 #include <stdbool.h>
 #include <syslog.h>
 #include <signal.h>
+#include <errno.h>
 
 #include <sys/types.h>
 #include <sys/sysinfo.h>
@@ -52,9 +53,9 @@ static bool stopMainFlag = false;
 
 void intHandler(int dummy) {
     printf("\nStopping...\n");
+    stopAlarm();
     stopSensor();
     stopLiveStream();
-    stopAlarm();
     stopMainFlag = true;
 }
 
@@ -138,6 +139,8 @@ void set_main_sched(void) {
 }
 
 int main() {
+
+    gpioCfgSetInternals(1>>10);
 /* init pigpio library */
     printf("Initializing pigpio... ");
     int ret = gpioInitialise();
@@ -174,22 +177,23 @@ int main() {
 
 /* create threads for each service */
     pthread_create(&liveStream_thread,      &liveStream_attr,       liveStream_func,     NULL);
-    pthread_create(&alarm_thread,           &alarm_attr,            alarm_func,          NULL);
     pthread_create(&sensorProcess_thread,   &sensorProcess_attr,    sensorProcess_func,  NULL);
+    pthread_create(&alarm_thread,           &alarm_attr,            alarm_func,          NULL);
 
 /* allow threads to run */
     while(!stopMainFlag){
         sleep(1);
     }
 
+/* wait for all threads to complete */
+    printf("\nWaiting for threads...");
+    pthread_join(alarm_thread, NULL);
+    pthread_join(sensorProcess_thread, NULL);
+    pthread_join(liveStream_thread, NULL);
+    printf("Done!\n");
+    
 /* deinit gpio on program exit */
     gpioTerminate();
 
-/* wait for all threads to complete */
-    printf("\nWaiting for threads...\n");
-    pthread_join(sensorProcess_thread, NULL);
-    pthread_join(liveStream_thread, NULL);
-    pthread_join(alarm_thread, NULL);
-    
     return 0;
 }
