@@ -48,6 +48,7 @@ void *liveStream_func(void *threadp) {
     
     while (!stopLiveStreamFlag) {
         clock_gettime(CLOCK_REALTIME, &liveStreamStart);
+        printf("liveStream requested: %d\n", gpioTick());
         cam0.read(frameX);
         imshow("video_display", frameX);
 
@@ -55,7 +56,7 @@ void *liveStream_func(void *threadp) {
         if ((winInput = waitKey(5)) == ESCAPE_KEY) {
             break;
         }
-        
+        printf("liveStream complete: %d\n", gpioTick());
         clock_gettime(CLOCK_REALTIME, &liveStreamFinish);
         delta_t(&liveStreamFinish, &liveStreamStart, &liveStreamDelta);
         if(timestamp(&liveStreamDelta) > timestamp(&liveStreamWCET)) {

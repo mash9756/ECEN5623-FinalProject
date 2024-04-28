@@ -32,7 +32,7 @@ constexpr double M_TO_CM  = 100;
 /* seconds to microseconds */
 constexpr double SEC_TO_US  = 1000000;
 /* delay for 1 sensor read period before data processing begins */
-constexpr int SENSOR_STARTUP_DELAY = 50000;
+constexpr int TRIGGER_PERIOD = 75;
 /* min/max allowable echo time, discard anything above as a misread */
 constexpr double MAX_ECHO_TIME_US   = (MAX_RANGE_CM * 2 * SEC_TO_US) / (M_TO_CM * SPEED_OF_SOUND);
 constexpr double MIN_ECHO_TIME_US   = (MIN_RANGE_CM * 2 * SEC_TO_US) / (M_TO_CM * SPEED_OF_SOUND);
@@ -133,6 +133,7 @@ int check_gpio_error(int ret, int pin) {
 /* HC-SR04 sensor requires 10us pulse to trigger a measurement */
 void trigger(void) {
     clock_gettime(CLOCK_REALTIME, &sensorRxStart);
+    printf("Sensor Data requested: %d\n", gpioTick());
     gpioWrite(TRIG_PIN, PI_ON);
     gpioDelay(10);
     gpioWrite(TRIG_PIN, PI_OFF);
@@ -163,6 +164,7 @@ void sensorRx(int pin, int level, uint32_t time_us) {
         }
 
         if(level == PI_OFF) {
+            printf("Sensor Data Ready / sensorRx requested: %d\n", gpioTick());
         /* discard any reads that are out of bounds */
             echo_us = read_us - start_us;
             if(echo_us > MAX_ECHO_TIME_US || echo_us < MIN_ECHO_TIME_US) {
@@ -207,6 +209,7 @@ void *sensorProcess_func(void *threadp) {
             waitSensorData();
         }
         clock_gettime(CLOCK_REALTIME, &sensorProcessStart);
+        printf("sensorRx Complete / sensorProcess requested: %d\n", gpioTick());
     /* save previous distance for velocity calc */
         objectData.prevRange_cm = objectData.range_cm;
     /* calculate latest detected range */
@@ -218,11 +221,6 @@ void *sensorProcess_func(void *threadp) {
     /* set data flags */
         sensorDataFlag = false;
         unlockSensorData();
-    /* ignore detected velocities higher than max possible speed */
-        // if( ((objectData.velocity * VELOCITY_SCALE) > MAX_VELOCITY) || 
-        //     ((objectData.velocity * VELOCITY_SCALE) < MIN_VELOCITY)) {
-        //     continue;
-        // }
     /* post objectData ready semaphore for Alarm thread */
         unlockObjectData();
 
@@ -259,21 +257,22 @@ int configHCSR04(void) {
     }
     printf("Done!\n");
 
+/* init sensor data structure */
+    sensorData.echoTime         = 0;
+    sensorData.prevReadTime     = 0;
+    sensorData.readTime         = 0;
+    sensorData.readCnt          = 0;
+/* init object data structure */
     objectData.prevRange_cm     = 0;
     objectData.range_cm         = 0;
     objectData.timeToCollision  = 0;
     objectData.velocity         = 0;
 
-    sensorData.echoTime         = 0;
-    sensorData.prevReadTime     = 0;
-    sensorData.readTime         = 0;
-    sensorData.readCnt          = 0;
-
 /* turn off TRIG_PIN to start */
     gpioWrite(TRIG_PIN, PI_OFF);
 
 /* setup timer to trigger the sonar sensor every 75ms */
-    gpioSetTimerFunc(TRIGGER_TIMER, 75, trigger);
+    gpioSetTimerFunc(TRIGGER_TIMER, TRIGGER_PERIOD, trigger);
 
 /* edge-detection callback for capturing sensor data */    
     gpioSetAlertFunc(ECHO_PIN, sensorRx);
@@ -282,7 +281,7 @@ int configHCSR04(void) {
     sem_init(&objectDataSem, 0, 0);
     
 /* delay for first sensor read */
-    gpioDelay(SENSOR_STARTUP_DELAY);
+    gpioDelay(TRIGGER_PERIOD);
 
     return 0;    
 }

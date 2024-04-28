@@ -62,6 +62,7 @@ void *alarm_func(void *threadp) {
 
     while(!stopAlarmFlag) {
         lockObjectData();
+        printf("sensorProcess Complete / alarm requested: %d\n", gpioTick());
         clock_gettime(CLOCK_REALTIME, &alarmStart);
         objData = getObjectData();
 
@@ -94,7 +95,7 @@ void *alarm_func(void *threadp) {
             printf("\tTime to Collision: %.02fs\n", objData->timeToCollision);
         }
         
-        
+        printf("alarm Complete: %d\n", gpioTick());
         clock_gettime(CLOCK_REALTIME, &alarmFinish);
         delta_t(&alarmFinish, &alarmStart, &alarmDelta);
         if(timestamp(&alarmDelta) > timestamp(&alarmWCET)) {
