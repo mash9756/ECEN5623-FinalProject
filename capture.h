@@ -1,8 +1,8 @@
 /**
- * 
- *
- *  
-*/
+ *  @file       capture.h
+ *  @author     Mark Sherman
+ *  @date       4/28/2024
+ */
 
 #ifndef CAPTURE_H_
 #define CAPTURE_H_

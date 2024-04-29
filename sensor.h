@@ -1,11 +1,15 @@
 /**
+ *  @file       sensor.h
+ *  @author     Mark Sherman
+ *  @date       4/28/2024
  * 
- * 
-*/
+ *  @brief      sensor config and data processing functions / data structure
+ */
 
 #ifndef SENSOR_H_
 #define SENSOR_H_
 
+/* raw sensor data struct */
 typedef struct sensorData
 {
     double echoTime;
@@ -13,6 +17,7 @@ typedef struct sensorData
     double readTime;
 }sensorData_t;
 
+/* processed data structure */
 typedef struct objectData
 {
     double prevRange_cm;

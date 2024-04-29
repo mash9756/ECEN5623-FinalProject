@@ -1,7 +1,8 @@
 /**
- * 
- * 
-*/
+ *  @file       alarm.cpp
+ *  @author     Mark Sherman
+ *  @date       4/28/2024
+ */
 
 #include <pigpio.h>
 #include <stdio.h>
@@ -79,6 +80,7 @@ void *alarm_func(void *threadp) {
 
     /* data processed, start of alarm service */
         clock_gettime(CLOCK_REALTIME, &alarmStart);
+        syslog(LOG_NOTICE, "\talarm service start %lfms\n", timestamp(&alarmStart));
 
     /* get a pointer to the current detection data */
         objData = getObjectData();
@@ -106,6 +108,7 @@ void *alarm_func(void *threadp) {
     /* calculate execution time, store WCET if it occurred */
         clock_gettime(CLOCK_REALTIME, &alarmFinish);
         delta_t(&alarmFinish, &alarmStart, &alarmDelta);
+        syslog(LOG_NOTICE, "\tliveStream service end: %lfms | ET: %lfms\n", timestamp(&alarmFinish), timestamp(&alarmDelta));
         if(timestamp(&alarmDelta) > timestamp(&alarmWCET)) {
             alarmWCET.tv_sec    = alarmDelta.tv_sec;
             alarmWCET.tv_nsec   = alarmDelta.tv_nsec;

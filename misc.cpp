@@ -1,7 +1,10 @@
 /**
+ *  @file       misc.cpp
+ *  @author     Mark Sherman
+ *  @date       4/28/2024
  * 
- * 
-*/
+ *  @brief      misc functions and definitons
+ */
 
 #include "misc.h"
 #include <sched.h>
@@ -79,7 +82,6 @@ void print_scheduler(void)
  * 
  *  @param  duration  pointer to a timespec object holding a duration
  *  @return calculated timestamp in ms
- * 
 */
 double timestamp(struct timespec *duration) {
     return (double)(duration->tv_sec) + (double)((double)duration->tv_nsec / NSEC_PER_MSEC);
@@ -94,7 +96,6 @@ double timestamp(struct timespec *duration) {
  *  @param  delta_t   destination timespec object to store the calculate duration
  * 
  *  @return VOID
- * 
 */
 void delta_t(struct timespec *stop, struct timespec *start, struct timespec *delta_t)
 {

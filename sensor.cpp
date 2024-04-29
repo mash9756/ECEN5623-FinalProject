@@ -1,10 +1,12 @@
 /**
+ *  @file       capture.cpp
+ *  @author     Mark Sherman
+ *  @date       4/28/2024
  * 
- *  references
- *  [1] https://stackoverflow.com/questions/16522858/understanding-of-pthread-cond-wait-and-pthread-cond-signal
- *  [2] https://github.com/buildrobotsbetter/rpi4b_gpio-example/blob/main/pigpio/src/flash-led/flash-led.cpp
- * 
-*/
+ *  @brief      reference links below
+ *              [1] https://stackoverflow.com/questions/16522858/understanding-of-pthread-cond-wait-and-pthread-cond-signal
+ *              [2] https://github.com/buildrobotsbetter/rpi4b_gpio-example/blob/main/pigpio/src/flash-led/flash-led.cpp
+ */
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -193,6 +195,7 @@ objectData_t *getObjectData(void) {
 void triggerSensor(void) {
 /* sensor triggered, start of data receive service */
     clock_gettime(CLOCK_REALTIME, &sensorRxStart);
+    syslog(LOG_NOTICE, "\tsensorRx service start %lfms\n", timestamp(&sensorRxStart));
     gpioWrite(TRIG_PIN, PI_ON);
     gpioDelay(10);
     gpioWrite(TRIG_PIN, PI_OFF);
@@ -260,6 +263,7 @@ void sensorRx(int pin, int level, uint32_t time_us) {
 
         clock_gettime(CLOCK_REALTIME, &sensorRxFinish);
         delta_t(&sensorRxFinish, &sensorRxStart, &sensorRxDelta);
+        syslog(LOG_NOTICE, "\tsensorRx service end: %lfms | ET: %lfms\n", timestamp(&sensorRxFinish), timestamp(&sensorRxDelta));
         if(timestamp(&sensorRxDelta) > timestamp(&sensorRxWCET)) {
             sensorRxWCET.tv_sec    = sensorRxDelta.tv_sec;
             sensorRxWCET.tv_nsec   = sensorRxDelta.tv_nsec;
@@ -267,9 +271,6 @@ void sensorRx(int pin, int level, uint32_t time_us) {
     }
 }
 
-/**
-
-*/
 /**
  *  @name   sensorProcess_func
  *  @brief  sensor data processing service function
@@ -292,7 +293,7 @@ void *sensorProcess_func(void *threadp) {
     /** 
      *  lock sensor data while we process the data
      *      need to wait for valid sensor data to be available
-     *      done using pthread_cond, see manual pages and references for examples
+     *      done using pthread_cond, see manual pages and reference [1] for examples
     */
         lockSensorData();
         while(!sensorDataFlag && !sensorStopFlag) {
@@ -300,6 +301,7 @@ void *sensorProcess_func(void *threadp) {
         }
     /* data read, start of data processing service */
         clock_gettime(CLOCK_REALTIME, &sensorProcessStart);
+        syslog(LOG_NOTICE, "\tsensorRx service start %lfms\n", timestamp(&sensorProcessStart));
 
     /* average 5 sensor readings for stability */
         for (size_t i = 0; i < AVG_READING_CNT; i++)
@@ -331,6 +333,7 @@ void *sensorProcess_func(void *threadp) {
     /* calculate execution time, store WCET if it occurred */
         clock_gettime(CLOCK_REALTIME, &sensorProcessFinish);
         delta_t(&sensorProcessFinish, &sensorProcessStart, &sensorProcessDelta);
+        syslog(LOG_NOTICE, "\tsensorProcess service end: %lfms | ET: %lfms\n", timestamp(&sensorProcessFinish), timestamp(&sensorProcessDelta));
         if(timestamp(&sensorProcessDelta) > timestamp(&sensorProcessWCET)) {
             sensorProcessWCET.tv_sec    = sensorProcessDelta.tv_sec;
             sensorProcessWCET.tv_nsec   = sensorProcessDelta.tv_nsec;

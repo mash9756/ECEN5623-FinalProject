@@ -1,8 +1,10 @@
 /**
+ *  @file       misc.h
+ *  @author     Mark Sherman
+ *  @date       4/28/2024
  * 
- * 
- * 
-*/
+ *  @brief      misc functions and definitons
+ */
 
 #ifndef MISC_H_
 #define MISC_H_

@@ -1,6 +1,7 @@
 /**
- *
- * 
+ *  @file       capture.cpp
+ *  @author     Mark Sherman
+ *  @date       4/28/2024
  */
 
 #include <stdio.h>
@@ -67,6 +68,8 @@ void *liveStream_func(void *threadp) {
     while (!stopLiveStreamFlag) {
     /* start of liveStream service, read and display a frame */
         clock_gettime(CLOCK_REALTIME, &liveStreamStart);
+        syslog(LOG_NOTICE, "\tliveStream service start %lfms\n", timestamp(&liveStreamStart));
+
         cam0.read(frameX);
         imshow("video_display", frameX);
 
@@ -78,6 +81,7 @@ void *liveStream_func(void *threadp) {
     /* calculate execution time, store WCET if it occurred */
         clock_gettime(CLOCK_REALTIME, &liveStreamFinish);
         delta_t(&liveStreamFinish, &liveStreamStart, &liveStreamDelta);
+        syslog(LOG_NOTICE, "\tliveStream service end: %lfms | ET: %lfms\n", timestamp(&liveStreamFinish), timestamp(&liveStreamDelta));
         if(timestamp(&liveStreamDelta) > timestamp(&liveStreamWCET)) {
             liveStreamWCET.tv_sec    = liveStreamDelta.tv_sec;
             liveStreamWCET.tv_nsec   = liveStreamDelta.tv_nsec;
