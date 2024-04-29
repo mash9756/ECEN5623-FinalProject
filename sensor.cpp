@@ -62,6 +62,12 @@ struct timespec sensorRxStart           = {0, 0};
 struct timespec sensorRxFinish          = {0, 0};
 struct timespec sensorRxDelta           = {0, 0};
 
+/* sensor latency timing */
+static struct timespec sensorLatWCET    = {0, 0};
+struct timespec sensorLatencyStart      = {0, 0};
+struct timespec sensorLatencyFinish     = {0, 0};
+struct timespec sensorLatencyDelta      = {0, 0};
+
 /* sensorProcess WCET timing */
 static struct timespec sensorProcessWCET    = {0, 0};
 struct timespec sensorProcessStart          = {0, 0};
@@ -194,10 +200,11 @@ objectData_t *getObjectData(void) {
  *  @return VOID
 */
 void triggerSensor(void) {
-/* sensor triggered, start of data receive service */
-    clock_gettime(CLOCK_REALTIME, &sensorRxStart);
-    delta_t(&sensorRxStart, getSystemStartTime(), &sensorRxStart);
-    syslog(LOG_NOTICE, "\tsensorRx service start %.02fms\n", timestamp(&sensorRxStart));
+/* sensor triggered, start of sensor data receive latency */
+    clock_gettime(CLOCK_REALTIME, &sensorLatencyStart);
+    delta_t(&sensorLatencyStart, getSystemStartTime(), &sensorLatencyStart);
+    syslog(LOG_NOTICE, "\tsensorLatency start %.02fms\n", timestamp(&sensorLatencyStart));
+
     gpioWrite(TRIG_PIN, PI_ON);
     gpioDelay(10);
     gpioWrite(TRIG_PIN, PI_OFF);
@@ -228,6 +235,7 @@ void sensorRx(int pin, int level, uint32_t time_us) {
         unlockSensorData();
         pthread_cond_signal(&sensorDataReady);
         printf("\t\tFinal sensorRx WCET %.02fms\n", timestamp(&sensorRxWCET));
+        syslog(LOG_NOTICE, "\t\tFinal sensorRx WCET %.02fms\n", timestamp(&sensorRxWCET));
     }
     else {
         read_us = (double)time_us;
@@ -248,6 +256,19 @@ void sensorRx(int pin, int level, uint32_t time_us) {
                 lockSensorData();
             }
 
+        /* WCET of the actual sensor receive service is just reading the data */
+            clock_gettime(CLOCK_REALTIME, &sensorRxStart);
+            delta_t(&sensorRxStart, getSystemStartTime(), &sensorRxStart);
+            syslog(LOG_NOTICE, "\tsensorRx service start %.02fms\n", timestamp(&sensorRxStart));
+
+        /* end sensor read latency, data is ready to read */ 
+            sensorLatencyFinish = sensorRxStart;
+            delta_t(&sensorLatencyFinish, sensorLatencyStart, &sensorLatencyDelta);
+            syslog(LOG_NOTICE, "\tsensorLatency end %.02fms | ET: %.02fms\n", timestamp(&sensorLatencyFinish), timestamp(&sensorLatencyDelta));
+            if(updateWCET(&sensorLatencyDelta, &sensorLatencyWCET)) {
+                syslog(LOG_NOTICE, "\tsensorLatency WCET Updated: %.02fms\n", timestamp(&sensorRxWCET));
+            }
+
         /* store the sensor data and associated timing for processing */
             sensorData[readCnt].prevReadTime = sensorData[readCnt].readTime;
             sensorData[readCnt].readTime = read_us / SEC_TO_US;
@@ -265,9 +286,8 @@ void sensorRx(int pin, int level, uint32_t time_us) {
             delta_t(&sensorRxFinish, getSystemStartTime(), &sensorRxFinish);
             delta_t(&sensorRxFinish, &sensorRxStart, &sensorRxDelta);
             syslog(LOG_NOTICE, "\tsensorRx service end: %.02fms | ET: %.02fms\n", timestamp(&sensorRxFinish), timestamp(&sensorRxDelta));
-            if(timestamp(&sensorRxDelta) > timestamp(&sensorRxWCET)) {
-                sensorRxWCET.tv_sec    = sensorRxDelta.tv_sec;
-                sensorRxWCET.tv_nsec   = sensorRxDelta.tv_nsec;
+            if(updateWCET(&sensorRxDelta, &sensorRxWCET)) {
+                syslog(LOG_NOTICE, "\tsensorRx WCET Updated: %.02fms\n", timestamp(&sensorRxWCET));
             }
         }
     }
@@ -338,15 +358,15 @@ void *sensorProcess_func(void *threadp) {
         delta_t(&sensorProcessFinish, getSystemStartTime(), &sensorProcessFinish);
         delta_t(&sensorProcessFinish, &sensorProcessStart, &sensorProcessDelta);
         syslog(LOG_NOTICE, "\tsensorProcess service end: %.02fms | ET: %.02fms\n", timestamp(&sensorProcessFinish), timestamp(&sensorProcessDelta));
-        if(timestamp(&sensorProcessDelta) > timestamp(&sensorProcessWCET)) {
-            sensorProcessWCET.tv_sec    = sensorProcessDelta.tv_sec;
-            sensorProcessWCET.tv_nsec   = sensorProcessDelta.tv_nsec;
+        if(updateWCET(&sensorProcessDelta, &sensorRxWCET)) {
+                syslog(LOG_NOTICE, "\tsensorProcess WCET Updated: %.02fms\n", timestamp(&sensorRxWCET));
         }
     }
 /* thread exit cleanup */
     pthread_mutex_destroy(&sensorDataMutex);
     pthread_cond_destroy(&sensorDataReady);
     printf("\t\tFinal sensorProcess WCET %.02fms\n", timestamp(&sensorProcessWCET));
+    syslog(LOG_NOTICE, "\t\tFinal sensorProcess WCET %.02fms\n", timestamp(&sensorProcessWCET));
     pthread_exit(NULL);
 }
 

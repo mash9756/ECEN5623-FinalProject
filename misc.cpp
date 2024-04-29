@@ -20,15 +20,43 @@ constexpr int MSEC_PER_SEC  = 1000;
 static timespec systemStart = {0, 0};
 
 /**
+ *  @name   getSystemStartTime
+ *  @brief  getter for static system start time
  * 
- * 
+ *  @param  NONE
+ *  @return pointer to static system start time 
 */
-timespec *getSystemStartTime(void) {
+struct timespec *getSystemStartTime(void) {
     return &systemStart;
 }
 
+/**
+ *  @name   setSystemStartTime
+ *  @brief  set system start time for timestamp reference
+ * 
+ *  @param  NONE
+ *  @return VOID
+*/
 void setSystemStartTime(void) {
     clock_gettime(CLOCK_REALTIME, &systemStart);
+}
+
+/**
+ *  @name   updateWCET
+ *  @brief  store latest execution time if it is longer than the current stored WCET
+ * 
+ *  @param  delta   current execution time
+ *  @param  WCET    current WCET
+ * 
+ *  @return TRUE if updated, FALSE otherwise    
+*/
+bool updateWCET(struct timespec *delta, struct timespec *WCET) {
+    if(timestamp(&delta) > timestamp(&WCET)) {
+      WCET.tv_sec    = delta.tv_sec;
+      WCET.tv_nsec   = delta.tv_nsec;
+      return true;
+    }
+    return false;
 }
 
 /**

@@ -85,14 +85,14 @@ void *liveStream_func(void *threadp) {
         delta_t(&liveStreamFinish, getSystemStartTime(), &liveStreamFinish);
         delta_t(&liveStreamFinish, &liveStreamStart, &liveStreamDelta);
         syslog(LOG_NOTICE, "\tliveStream service end: %.02fms | ET: %.02fms\n", timestamp(&liveStreamFinish), timestamp(&liveStreamDelta));
-        if(timestamp(&liveStreamDelta) > timestamp(&liveStreamWCET)) {
-            liveStreamWCET.tv_sec    = liveStreamDelta.tv_sec;
-            liveStreamWCET.tv_nsec   = liveStreamDelta.tv_nsec;
+        if(updateWCET(&liveStreamDelta, &liveStreamWCET)) {
+            syslog(LOG_NOTICE, "\tliveStream WCET Updated: %.02fms\n", timestamp(&liveStreamWCET));
         }
     }
 /* thread exit cleanup */
     cam0.release();
     destroyWindow("video_display"); 
     printf("\t\tFinal liveStream WCET %.02fms\n", timestamp(&liveStreamWCET));
+    syslog(LOG_NOTICE, "\t\tFinal liveStream WCET %.02fms\n", timestamp(&liveStreamWCET));
     pthread_exit(NULL);
 }

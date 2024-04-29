@@ -82,7 +82,7 @@ void *alarm_func(void *threadp) {
     /* data processed, start of alarm service */
         clock_gettime(CLOCK_REALTIME, &alarmStart);
         delta_t(&alarmStart, getSystemStartTime(), &alarmStart);
-        syslog(LOG_NOTICE, "\tALARM service start %.02fms\n", timestamp(&alarmStart));
+        syslog(LOG_NOTICE, "\talarm service start %.02fms\n", timestamp(&alarmStart));
 
     /* get a pointer to the current detection data */
         objData = getObjectData();
@@ -110,16 +110,16 @@ void *alarm_func(void *threadp) {
         clock_gettime(CLOCK_REALTIME, &alarmFinish);
         delta_t(&alarmFinish, getSystemStartTime(), &alarmFinish);
         delta_t(&alarmFinish, &alarmStart, &alarmDelta);
-        syslog(LOG_NOTICE, "\tALARM service end: %.02fms | ET: %.02fms\n", timestamp(&alarmFinish), timestamp(&alarmDelta));
-        if(timestamp(&alarmDelta) > timestamp(&alarmWCET)) {
-            alarmWCET.tv_sec    = alarmDelta.tv_sec;
-            alarmWCET.tv_nsec   = alarmDelta.tv_nsec;
+        syslog(LOG_NOTICE, "\talarm service end: %.02fms | ET: %.02fms\n", timestamp(&alarmFinish), timestamp(&alarmDelta));
+        if(updateWCET(&alarmDelta, &alarmWCET)) {
+            syslog(LOG_NOTICE, "\talarm WCET Updated: %.02fms\n", timestamp(&alarmWCET));
         }
     }
 /* thread cleanup */
     gpioSetTimerFunc(ALARM_TIMER, 0, NULL);
     destroyObjectDataSem();
     printf("\t\tFinal alarm WCET %.02fms\n", timestamp(&alarmWCET));
+    syslog(LOG_NOTICE, "\t\tFinal alarm WCET %.02fms\n", timestamp(&alarmWCET));
     pthread_exit(NULL);
 }
 
