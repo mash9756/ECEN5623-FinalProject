@@ -63,7 +63,7 @@ struct timespec sensorRxFinish          = {0, 0};
 struct timespec sensorRxDelta           = {0, 0};
 
 /* sensor latency timing */
-static struct timespec sensorLatWCET    = {0, 0};
+static struct timespec sensorLatencyWCET    = {0, 0};
 struct timespec sensorLatencyStart      = {0, 0};
 struct timespec sensorLatencyFinish     = {0, 0};
 struct timespec sensorLatencyDelta      = {0, 0};
@@ -263,10 +263,10 @@ void sensorRx(int pin, int level, uint32_t time_us) {
 
         /* end sensor read latency, data is ready to read */ 
             sensorLatencyFinish = sensorRxStart;
-            delta_t(&sensorLatencyFinish, sensorLatencyStart, &sensorLatencyDelta);
+            delta_t(&sensorLatencyFinish, &sensorLatencyStart, &sensorLatencyDelta);
             syslog(LOG_NOTICE, "\tsensorLatency end %.02fms | ET: %.02fms\n", timestamp(&sensorLatencyFinish), timestamp(&sensorLatencyDelta));
             if(updateWCET(&sensorLatencyDelta, &sensorLatencyWCET)) {
-                syslog(LOG_NOTICE, "\tsensorLatency WCET Updated: %.02fms\n", timestamp(&sensorRxWCET));
+                syslog(LOG_NOTICE, "\tsensorLatency WCET Updated: %.02fms\n", timestamp(&sensorLatencyWCET));
             }
 
         /* store the sensor data and associated timing for processing */
@@ -358,8 +358,8 @@ void *sensorProcess_func(void *threadp) {
         delta_t(&sensorProcessFinish, getSystemStartTime(), &sensorProcessFinish);
         delta_t(&sensorProcessFinish, &sensorProcessStart, &sensorProcessDelta);
         syslog(LOG_NOTICE, "\tsensorProcess service end: %.02fms | ET: %.02fms\n", timestamp(&sensorProcessFinish), timestamp(&sensorProcessDelta));
-        if(updateWCET(&sensorProcessDelta, &sensorRxWCET)) {
-                syslog(LOG_NOTICE, "\tsensorProcess WCET Updated: %.02fms\n", timestamp(&sensorRxWCET));
+        if(updateWCET(&sensorProcessDelta, &sensorProcessWCET)) {
+                syslog(LOG_NOTICE, "\tsensorProcess WCET Updated: %.02fms\n", timestamp(&sensorProcessWCET));
         }
     }
 /* thread exit cleanup */

@@ -51,9 +51,9 @@ void setSystemStartTime(void) {
  *  @return TRUE if updated, FALSE otherwise    
 */
 bool updateWCET(struct timespec *delta, struct timespec *WCET) {
-    if(timestamp(&delta) > timestamp(&WCET)) {
-      WCET.tv_sec    = delta.tv_sec;
-      WCET.tv_nsec   = delta.tv_nsec;
+    if(timestamp(delta) > timestamp(WCET)) {
+      WCET->tv_sec    = delta->tv_sec;
+      WCET->tv_nsec   = delta->tv_nsec;
       return true;
     }
     return false;

@@ -33,7 +33,7 @@ void print_scheduler(void);
 
 struct timespec *getSystemStartTime(void);
 void setSystemStartTime(void);
-bool updateWCET(struct timespec *stop, struct timespec *start, struct timespec *WCET)
+bool updateWCET(struct timespec *delta, struct timespec *WCET);
 
 double timestamp(struct timespec *duration);
 void delta_t(struct timespec *stop, struct timespec *start, struct timespec *delta_t);
