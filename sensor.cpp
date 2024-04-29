@@ -261,15 +261,14 @@ void sensorRx(int pin, int level, uint32_t time_us) {
                 unlockSensorData();
                 pthread_cond_signal(&sensorDataReady);
             }
-        }
-
-        clock_gettime(CLOCK_REALTIME, &sensorRxFinish);
-        delta_t(&sensorRxFinish, getSystemStartTime(), &sensorRxFinish);
-        delta_t(&sensorRxFinish, &sensorRxStart, &sensorRxDelta);
-        syslog(LOG_NOTICE, "\tsensorRx service end: %.02fms | ET: %.02fms\n", timestamp(&sensorRxFinish), timestamp(&sensorRxDelta));
-        if(timestamp(&sensorRxDelta) > timestamp(&sensorRxWCET)) {
-            sensorRxWCET.tv_sec    = sensorRxDelta.tv_sec;
-            sensorRxWCET.tv_nsec   = sensorRxDelta.tv_nsec;
+            clock_gettime(CLOCK_REALTIME, &sensorRxFinish);
+            delta_t(&sensorRxFinish, getSystemStartTime(), &sensorRxFinish);
+            delta_t(&sensorRxFinish, &sensorRxStart, &sensorRxDelta);
+            syslog(LOG_NOTICE, "\tsensorRx service end: %.02fms | ET: %.02fms\n", timestamp(&sensorRxFinish), timestamp(&sensorRxDelta));
+            if(timestamp(&sensorRxDelta) > timestamp(&sensorRxWCET)) {
+                sensorRxWCET.tv_sec    = sensorRxDelta.tv_sec;
+                sensorRxWCET.tv_nsec   = sensorRxDelta.tv_nsec;
+            }
         }
     }
 }
