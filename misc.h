@@ -20,6 +20,7 @@
 /* Timer definitions */
 #define ALARM_TIMER         (0)
 #define TRIGGER_TIMER       (1)
+#define LIVESTREAM_TIMER    (2)
 
 /* cores for given services, we might just run cam on 0 and all other on 1 */
 #define LIVESTREAM_CORE_ID  (0)

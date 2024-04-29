@@ -16,7 +16,11 @@
 
 using namespace cv;
 
+/* escape key defintion to close streaming window */
 constexpr int ESCAPE_KEY = 27;
+
+/* liveStream release period, 15Hz or 66ms*/
+constexpr int LIVESTREAM_PERIOD = 66;
 
 /* WCET timing */
 static struct timespec liveStreamWCET   = {0, 0};
@@ -26,6 +30,9 @@ struct timespec liveStreamDelta         = {0, 0};
 
 /* thread exit flag, set by SIGINT handler */
 static bool stopLiveStreamFlag = false;
+
+/* liveStream release semaphore */
+sem_t liveStreamSem;
 
 /**
  *  @name   stopLiveStream
@@ -38,6 +45,43 @@ void stopLiveStream(void) {
     stopLiveStreamFlag = true;
     printf("\tStopping liveStream service...\n");
     gpioDelay(EXIT_DELAY);
+}
+
+/**
+ *  @name   release_LiveStream
+ *  @brief  timer callback to release liveStream service every 66ms
+ * 
+ *  @param  NONE
+ *  @return VOID
+*/
+void release_liveStream(void) {
+    sem_post(&liveStreamSem);
+}
+
+/**
+ *  @name   configLiveStream
+ *  @brief  setup liveStream service release semaphore and timer 
+ * 
+ *  @param      NONE
+ *  @return     corresponding error code, 0 otherwise
+*/
+int configLiveStream(void) {
+    int ret = 0;
+    ret = sem_init(&liveStreamSem, 0, 0);
+/* liveStream release semaphore init  */
+    if(ret) {
+        perror("liveStreamSem Init");
+        return ret;
+    }
+
+/* setup timer to release the liveStream service every 66ms */
+    ret = gpioSetTimerFunc(LIVESTREAM_TIMER, LIVESTREAM_PERIOD, release_liveStream);
+    if(ret) {
+        printf("\nliveStream Timer setup failed: %d", ret);
+        return ret;
+    }
+
+    return 0;
 }
 
 /**
@@ -67,6 +111,12 @@ void *liveStream_func(void *threadp) {
     cam0.set(CAP_PROP_FPS, 30);
     
     while (!stopLiveStreamFlag) {
+    /* wait for liveStream release */
+        if(sem_wait(&liveStreamSem)) {
+            perror("liveStreamSem");
+            break;
+        }
+
     /* start of liveStream service, read and display a frame */
         clock_gettime(CLOCK_REALTIME, &liveStreamStart);
         delta_t(&liveStreamStart, getSystemStartTime(), &liveStreamStart);

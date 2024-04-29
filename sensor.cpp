@@ -381,15 +381,19 @@ void *sensorProcess_func(void *threadp) {
  *  @return completion status, -1 indicates gpio init error
 */
 int configSensor(void) {
+    int ret = 0;
+
     printf("Configuring TRIG Pin %d to Output Mode...", TRIG_PIN);
-    if(check_gpio_error(gpioSetMode(TRIG_PIN,  PI_OUTPUT), TRIG_PIN)) {
-        return -1;
+    ret = check_gpio_error(gpioSetMode(TRIG_PIN,  PI_OUTPUT), TRIG_PIN);
+    if(ret) {
+        return ret;
     }
     printf("Done!\n");
 
     printf("Configuring ECHO Pin %d to Input Mode...", ECHO_PIN);
-    if(check_gpio_error(gpioSetMode(ECHO_PIN,  PI_INPUT), ECHO_PIN)) {
-        return -1;
+    ret = check_gpio_error(gpioSetMode(ECHO_PIN,  PI_INPUT), ECHO_PIN);
+    if(ret) {
+        return ret;
     }
     printf("Done!\n");
 
@@ -397,13 +401,25 @@ int configSensor(void) {
     gpioWrite(TRIG_PIN, PI_OFF);
 
 /* setup timer to trigger the sonar sensor every 50ms */
-    gpioSetTimerFunc(TRIGGER_TIMER, TRIGGER_PERIOD, triggerSensor);
+    ret = gpioSetTimerFunc(TRIGGER_TIMER, TRIGGER_PERIOD, triggerSensor);
+    if(ret) {
+        printf("\nSensor Trigger Timer setup failed: %d", ret);
+        return ret;
+    }
 
 /* edge-detection callback for capturing sensor data */    
-    gpioSetAlertFunc(ECHO_PIN, sensorRx);
+    ret = gpioSetAlertFunc(ECHO_PIN, sensorRx);
+    if(ret) {
+        printf("\nECHO pin level detection setup failed: %d", ret);
+        return ret;
+    }
 
 /* objectData semaphore for data processing / alarm sync */
-    sem_init(&objectDataSem, 0, 0);
+    ret = sem_init(&objectDataSem, 0, 0);
+    if(ret) {
+        perror("objectDataSem");
+        return ret;
+    }
     
 /* delay for first sensor data processing */
     gpioDelay(TRIGGER_PERIOD * AVG_READING_CNT);

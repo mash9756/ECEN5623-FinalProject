@@ -218,6 +218,13 @@ int main() {
         return -1;
     }
 
+/* setup liveStream release timing */
+    if(configAlarm()) {
+        printf("liveStream Config failed!\n");
+        return -1;
+    }
+
+/* get system start time for relative timestamp calculations */
     setSystemStartTime();
 
 /* create threads for each service */
