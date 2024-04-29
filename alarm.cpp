@@ -22,12 +22,8 @@ constexpr unsigned int DELAY_250MS  = 250;
 constexpr unsigned int DELAY_100MS  = 100;
 constexpr unsigned int DELAY_50MS   = 50;
 
-/* Time To Collision alarm ranges */
-constexpr double MIN_TTC    = 2.8;
-constexpr double MID_TTC_1  = 2 * MIN_TTC;
-constexpr double MID_TTC_2  = 3 * MIN_TTC;
-constexpr double MID_TTC_3  = 4 * MIN_TTC;
-constexpr double MAX_TTC    = 5 * MIN_TTC;
+/* Time To Collision alarm threshold */
+constexpr double MIN_TTC    = 3.0;
 
 /* WCET timing */
 static struct timespec alarmWCET    = {0, 0};
@@ -88,26 +84,14 @@ void *alarm_func(void *threadp) {
         objData = getObjectData();
 
     /* determine LED blink frequency based on calculated TTC */
-        if((objData->timeToCollision > MAX_TTC) || (objData->timeToCollision < 0)) {
+        if((objData->timeToCollision > MIN_TTC) || (objData->timeToCollision < 0)) {
         /* disable LED alarm if outside max detection */
             gpioSetTimerFunc(ALARM_TIMER, 0, NULL);
             gpioWrite(LED_PIN, PI_OFF);
             continue;
         }
-        else if(objData->timeToCollision > MID_TTC_1) {
-            delay = DELAY_1_SEC; 
-        }
-        else if(objData->timeToCollision > MID_TTC_2) {
-            delay = DELAY_500MS;
-        }
-        else if(objData->timeToCollision > MID_TTC_3) {
-            delay = DELAY_250MS;
-        }
-        else if(objData->timeToCollision > MIN_TTC) {
+        else {
             delay = DELAY_100MS;
-        }
-        else{
-            delay = DELAY_50MS;
         }
         gpioSetTimerFunc(ALARM_TIMER, delay, toggleLED);
     
