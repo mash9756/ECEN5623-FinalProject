@@ -30,6 +30,10 @@
 
 int check_gpio_error(int ret, int pin);
 void print_scheduler(void);
+
+timespec *getSystemStartTime(void);
+void setSystemStartTime(void);
+
 double timestamp(struct timespec *duration);
 void delta_t(struct timespec *stop, struct timespec *start, struct timespec *delta_t);
 

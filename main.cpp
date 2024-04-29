@@ -218,6 +218,8 @@ int main() {
         return -1;
     }
 
+    setSystemStartTime();
+
 /* create threads for each service */
     pthread_create(&liveStream_thread,      &liveStream_attr,       liveStream_func,     NULL);
     pthread_create(&sensorProcess_thread,   &sensorProcess_attr,    sensorProcess_func,  NULL);

@@ -15,6 +15,21 @@
 /* conversion values for timestamp calc */
 constexpr int NSEC_PER_SEC  = 1000000000;
 constexpr int NSEC_PER_MSEC = 1000000;
+constexpr int MSEC_PER_SEC  = 1000;
+
+static timespec systemStart = {0, 0};
+
+/**
+ * 
+ * 
+*/
+timespec *getSystemStartTime(void) {
+    return &systemStart;
+}
+
+void setSystemStartTime(void) {
+    clock_gettime(CLOCK_REALTIME, &systemStart);
+}
 
 /**
  *  @name   check_gpio_error
@@ -75,7 +90,6 @@ void print_scheduler(void)
    }
 }
 
-/* calculates a duration in ms with added precision */
 /**
  *  @name   timestampt
  *  @brief  calculates the time in ms from a timespec object
@@ -84,7 +98,7 @@ void print_scheduler(void)
  *  @return calculated timestamp in ms
 */
 double timestamp(struct timespec *duration) {
-    return (double)(duration->tv_sec) + (double)((double)duration->tv_nsec / NSEC_PER_MSEC);
+    return (double)((double)duration->tv_sec * MSEC_PER_SEC) + (double)((double)duration->tv_nsec / NSEC_PER_MSEC);
 }
 
 /**

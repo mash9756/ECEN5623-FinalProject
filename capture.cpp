@@ -6,6 +6,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <syslog.h>
 
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
@@ -68,7 +69,8 @@ void *liveStream_func(void *threadp) {
     while (!stopLiveStreamFlag) {
     /* start of liveStream service, read and display a frame */
         clock_gettime(CLOCK_REALTIME, &liveStreamStart);
-        syslog(LOG_NOTICE, "\tliveStream service start %lfms\n", timestamp(&liveStreamStart));
+        delta_t(&liveStreamStart, getSystemStartTime(), &liveStreamStart);
+        syslog(LOG_NOTICE, "\tliveStream service start %.02fms\n", timestamp(&liveStreamStart));
 
         cam0.read(frameX);
         imshow("video_display", frameX);
@@ -80,8 +82,9 @@ void *liveStream_func(void *threadp) {
 
     /* calculate execution time, store WCET if it occurred */
         clock_gettime(CLOCK_REALTIME, &liveStreamFinish);
+        delta_t(&liveStreamFinish, getSystemStartTime(), &liveStreamFinish);
         delta_t(&liveStreamFinish, &liveStreamStart, &liveStreamDelta);
-        syslog(LOG_NOTICE, "\tliveStream service end: %lfms | ET: %lfms\n", timestamp(&liveStreamFinish), timestamp(&liveStreamDelta));
+        syslog(LOG_NOTICE, "\tliveStream service end: %.02fms | ET: %.02fms\n", timestamp(&liveStreamFinish), timestamp(&liveStreamDelta));
         if(timestamp(&liveStreamDelta) > timestamp(&liveStreamWCET)) {
             liveStreamWCET.tv_sec    = liveStreamDelta.tv_sec;
             liveStreamWCET.tv_nsec   = liveStreamDelta.tv_nsec;
@@ -90,6 +93,6 @@ void *liveStream_func(void *threadp) {
 /* thread exit cleanup */
     cam0.release();
     destroyWindow("video_display"); 
-    printf("\t\tFinal liveStream WCET %lfms\n", timestamp(&liveStreamWCET));
+    printf("\t\tFinal liveStream WCET %.02fms\n", timestamp(&liveStreamWCET));
     pthread_exit(NULL);
 }

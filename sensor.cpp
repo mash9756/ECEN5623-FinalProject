@@ -16,6 +16,7 @@
 #include <stdint.h>
 #include <unistd.h>
 #include <errno.h>
+#include <syslog.h>
 
 #include <pigpio.h>
 
@@ -195,7 +196,8 @@ objectData_t *getObjectData(void) {
 void triggerSensor(void) {
 /* sensor triggered, start of data receive service */
     clock_gettime(CLOCK_REALTIME, &sensorRxStart);
-    syslog(LOG_NOTICE, "\tsensorRx service start %lfms\n", timestamp(&sensorRxStart));
+    delta_t(&sensorRxStart, getSystemStartTime(), &sensorRxStart);
+    syslog(LOG_NOTICE, "\tsensorRx service start %.02fms\n", timestamp(&sensorRxStart));
     gpioWrite(TRIG_PIN, PI_ON);
     gpioDelay(10);
     gpioWrite(TRIG_PIN, PI_OFF);
@@ -225,7 +227,7 @@ void sensorRx(int pin, int level, uint32_t time_us) {
         sensorDataFlag = true;
         unlockSensorData();
         pthread_cond_signal(&sensorDataReady);
-        printf("\t\tFinal sensorRx WCET %lfms\n", timestamp(&sensorRxWCET));
+        printf("\t\tFinal sensorRx WCET %.02fms\n", timestamp(&sensorRxWCET));
     }
     else {
         read_us = (double)time_us;
@@ -262,8 +264,9 @@ void sensorRx(int pin, int level, uint32_t time_us) {
         }
 
         clock_gettime(CLOCK_REALTIME, &sensorRxFinish);
+        delta_t(&sensorRxFinish, getSystemStartTime(), &sensorRxFinish);
         delta_t(&sensorRxFinish, &sensorRxStart, &sensorRxDelta);
-        syslog(LOG_NOTICE, "\tsensorRx service end: %lfms | ET: %lfms\n", timestamp(&sensorRxFinish), timestamp(&sensorRxDelta));
+        syslog(LOG_NOTICE, "\tsensorRx service end: %.02fms | ET: %.02fms\n", timestamp(&sensorRxFinish), timestamp(&sensorRxDelta));
         if(timestamp(&sensorRxDelta) > timestamp(&sensorRxWCET)) {
             sensorRxWCET.tv_sec    = sensorRxDelta.tv_sec;
             sensorRxWCET.tv_nsec   = sensorRxDelta.tv_nsec;
@@ -301,7 +304,8 @@ void *sensorProcess_func(void *threadp) {
         }
     /* data read, start of data processing service */
         clock_gettime(CLOCK_REALTIME, &sensorProcessStart);
-        syslog(LOG_NOTICE, "\tsensorRx service start %lfms\n", timestamp(&sensorProcessStart));
+        delta_t(&sensorProcessStart, getSystemStartTime(), &sensorProcessStart);
+        syslog(LOG_NOTICE, "\tsensorProcess service start %.02fms\n", timestamp(&sensorProcessStart));
 
     /* average 5 sensor readings for stability */
         for (size_t i = 0; i < AVG_READING_CNT; i++)
@@ -332,8 +336,9 @@ void *sensorProcess_func(void *threadp) {
 
     /* calculate execution time, store WCET if it occurred */
         clock_gettime(CLOCK_REALTIME, &sensorProcessFinish);
+        delta_t(&sensorProcessFinish, getSystemStartTime(), &sensorProcessFinish);
         delta_t(&sensorProcessFinish, &sensorProcessStart, &sensorProcessDelta);
-        syslog(LOG_NOTICE, "\tsensorProcess service end: %lfms | ET: %lfms\n", timestamp(&sensorProcessFinish), timestamp(&sensorProcessDelta));
+        syslog(LOG_NOTICE, "\tsensorProcess service end: %.02fms | ET: %.02fms\n", timestamp(&sensorProcessFinish), timestamp(&sensorProcessDelta));
         if(timestamp(&sensorProcessDelta) > timestamp(&sensorProcessWCET)) {
             sensorProcessWCET.tv_sec    = sensorProcessDelta.tv_sec;
             sensorProcessWCET.tv_nsec   = sensorProcessDelta.tv_nsec;
@@ -342,7 +347,7 @@ void *sensorProcess_func(void *threadp) {
 /* thread exit cleanup */
     pthread_mutex_destroy(&sensorDataMutex);
     pthread_cond_destroy(&sensorDataReady);
-    printf("\t\tFinal sensorProcess WCET %lfms\n", timestamp(&sensorProcessWCET));
+    printf("\t\tFinal sensorProcess WCET %.02fms\n", timestamp(&sensorProcessWCET));
     pthread_exit(NULL);
 }
 

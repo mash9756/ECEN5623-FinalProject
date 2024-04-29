@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <errno.h>
 #include <signal.h>
+#include <syslog.h>
 
 #include "alarm.h"
 #include "sensor.h"
@@ -80,7 +81,8 @@ void *alarm_func(void *threadp) {
 
     /* data processed, start of alarm service */
         clock_gettime(CLOCK_REALTIME, &alarmStart);
-        syslog(LOG_NOTICE, "\talarm service start %lfms\n", timestamp(&alarmStart));
+        delta_t(&alarmStart, getSystemStartTime(), &alarmStart);
+        syslog(LOG_NOTICE, "\tALARM service start %.02fms\n", timestamp(&alarmStart));
 
     /* get a pointer to the current detection data */
         objData = getObjectData();
@@ -90,25 +92,25 @@ void *alarm_func(void *threadp) {
         /* disable LED alarm if outside max detection */
             gpioSetTimerFunc(ALARM_TIMER, 0, NULL);
             gpioWrite(LED_PIN, PI_OFF);
-            continue;
         }
         else {
             delay = DELAY_100MS;
-        }
-        gpioSetTimerFunc(ALARM_TIMER, delay, toggleLED);
+            gpioSetTimerFunc(ALARM_TIMER, delay, toggleLED);
     
-    /* clear screen and display detection data to the user */
-        printf("\033c");
-        printf("*** Object Detected! ***\n");
-        printf("\tPrevRange: %.02fm | Range: %.02fm | Velocity: %.02fkm/hr\n",
-                    (objData->prevRange_cm), (objData->range_cm), 
-                    (objData->velocity_kmPerHr));
-        printf("\tTime to Collision: %.02fs\n", objData->timeToCollision);
-        
+        /* clear screen and display detection data to the user */
+            printf("\033c");
+            printf("*** Object Detected! ***\n");
+            printf("\tPrevRange: %.02fm | Range: %.02fm | Velocity: %.02fkm/hr\n",
+                        (objData->prevRange_cm), (objData->range_cm), 
+                        (objData->velocity_kmPerHr));
+            printf("\tTime to Collision: %.02fs\n", objData->timeToCollision);
+        }
+
     /* calculate execution time, store WCET if it occurred */
         clock_gettime(CLOCK_REALTIME, &alarmFinish);
+        delta_t(&alarmFinish, getSystemStartTime(), &alarmFinish);
         delta_t(&alarmFinish, &alarmStart, &alarmDelta);
-        syslog(LOG_NOTICE, "\tliveStream service end: %lfms | ET: %lfms\n", timestamp(&alarmFinish), timestamp(&alarmDelta));
+        syslog(LOG_NOTICE, "\tALARM service end: %.02fms | ET: %.02fms\n", timestamp(&alarmFinish), timestamp(&alarmDelta));
         if(timestamp(&alarmDelta) > timestamp(&alarmWCET)) {
             alarmWCET.tv_sec    = alarmDelta.tv_sec;
             alarmWCET.tv_nsec   = alarmDelta.tv_nsec;
@@ -117,7 +119,7 @@ void *alarm_func(void *threadp) {
 /* thread cleanup */
     gpioSetTimerFunc(ALARM_TIMER, 0, NULL);
     destroyObjectDataSem();
-    printf("\t\tFinal alarm WCET %lfms\n", timestamp(&alarmWCET));
+    printf("\t\tFinal alarm WCET %.02fms\n", timestamp(&alarmWCET));
     pthread_exit(NULL);
 }
 
