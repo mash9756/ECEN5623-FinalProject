@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <syslog.h>
+#include <semaphore.h>
 
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
@@ -67,8 +68,9 @@ void release_liveStream(void) {
 */
 int configLiveStream(void) {
     int ret = 0;
-    ret = sem_init(&liveStreamSem, 0, 0);
+
 /* liveStream release semaphore init  */
+    ret = sem_init(&liveStreamSem, 0, 0);
     if(ret) {
         perror("liveStreamSem Init");
         return ret;

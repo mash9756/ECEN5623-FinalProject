@@ -219,7 +219,7 @@ int main() {
     }
 
 /* setup liveStream release timing */
-    if(configAlarm()) {
+    if(configLiveStream()) {
         printf("liveStream Config failed!\n");
         return -1;
     }
