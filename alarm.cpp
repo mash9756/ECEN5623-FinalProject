@@ -1,6 +1,6 @@
 /**
  *  @file       alarm.cpp
- *  @author     Mark Sherman
+ *  @author     Mark Sherman,Shruthi Thallapally
  *  @date       4/28/2024
  */
 
@@ -17,6 +17,7 @@
 /* LED is connected to GPIO26 (physical pin 37) */ 
 constexpr unsigned int LED_PIN      = 26;
 
+constexpr unsigned int BUZZER_PIN      = 16;
 /* delays are in ms */
 constexpr unsigned int DELAY_1_SEC  = 1000;
 constexpr unsigned int DELAY_500MS  = 500;
@@ -61,7 +62,13 @@ void toggleLED(void) {
     int level = gpioRead(LED_PIN);
     gpioWrite(LED_PIN, !level);
 }
-
+void buzzer()
+{
+    gpioWrite(BUZZER_PIN,PI_HIGH);
+    gpioDelay(1000*1000);
+    gpioWrite(BUZZER_PIN,PI_LOW);
+  
+}
 /**
  *  @name   alarm_func
  *  @brief  alarm service function
@@ -96,7 +103,7 @@ void *alarm_func(void *threadp) {
         else {
             delay = DELAY_100MS;
             gpioSetTimerFunc(ALARM_TIMER, delay, toggleLED);
-    
+            buzzer();
         /* clear screen and display detection data to the user */
             printf("\033c");
             printf("*** Object Detected! ***\n");
@@ -134,6 +141,10 @@ void *alarm_func(void *threadp) {
 int configAlarm(void) {
     printf("Configuring LED Pin %d to Output Mode...", LED_PIN);
     if(check_gpio_error(gpioSetMode(LED_PIN,  PI_OUTPUT), LED_PIN)) {
+        return -1;
+    }
+    printf("Configuring BUZZER Pin %d to Output Mode...", BUZZER_PIN);
+    if(check_gpio_error(gpioSetMode(BUZZER_PIN,  PI_OUTPUT), BUZZER_PIN)) {
         return -1;
     }
     printf("Done!\n");
